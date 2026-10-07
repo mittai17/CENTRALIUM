@@ -1,0 +1,60 @@
+# Centralium agent - hardened systemd unit (review before installing; nothing installs this automatically).
+# Install (as root, manually): cp to /etc/systemd/system/, adjust paths/user, systemctl daemon-reload.
+# Auditd/eBPF collectors need extra capabilities; they are listed but commented out - enable only what you use.
+[Unit]
+Description=Centralium EDR agent
+Documentation=file:///opt/centralium/docs/ARCHITECTURE.md
+After=network.target auditd.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=centralium
+Group=centralium
+WorkingDirectory=/opt/centralium
+Environment=CENTRALIUM_CONFIG=/etc/centralium/agent.toml
+# Sync token is supplied via a root-owned 0600 file, never inline:
+EnvironmentFile=-/etc/centralium/agent.env
+ExecStart=/opt/centralium/.venv/bin/python -m centralium.agent.main run
+Restart=on-failure
+RestartSec=5
+WatchdogSec=120
+TimeoutStopSec=30
+
+StateDirectory=centralium
+LogsDirectory=centralium
+ConfigurationDirectory=centralium
+StateDirectoryMode=0750
+
+# --- hardening ---
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/centralium /var/log/centralium
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0077
+CapabilityBoundingSet=
+AmbientCapabilities=
+# Needed only for auditd netlink / eBPF / response actions (kill, isolate): uncomment deliberately.
+#AmbientCapabilities=CAP_AUDIT_READ CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
+#CapabilityBoundingSet=CAP_AUDIT_READ CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
+
+[Install]
+WantedBy=multi-user.target

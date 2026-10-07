@@ -1,0 +1,9 @@
+################################################################
+# abuse.ch URLhaus Database Dump (CSV - recent URLs) FIXTURE   #
+################################################################
+# id,dateadded,url,url_status,last_online,threat,tags,urlhaus_link,reporter
+"3000001","2024-07-01 12:00:00","http://Payload.Example.test/Dropper.bin","online","2024-07-02 12:00:00","malware_download","elf,mirai","https://urlhaus.abuse.ch/url/3000001/","fixture"
+"3000002","2024-07-01 12:05:00","https://198.51.100.9:8080/x.sh","offline","2024-07-01 12:05:00","malware_download","","https://urlhaus.abuse.ch/url/3000002/","fixture"
+"3000003","2024-07-01 12:06:00","ftp://files.example.test/a","online","","malware_download","","","fixture"
+"3000004","2024-07-01 12:06:00","file:///etc/passwd","online","","malware_download","","","fixture"
+"3000005","2024-07-01 12:06:00","not a url","online","","","","",""

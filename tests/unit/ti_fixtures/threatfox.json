@@ -1,0 +1,11 @@
+{"query_status": "ok", "data": [
+ {"id": "1001", "ioc": "198.51.100.77:4443", "threat_type": "botnet_cc", "ioc_type": "ip:port", "malware": "win.fixture", "malware_printable": "FixtureRAT", "confidence_level": 90, "first_seen": "2024-06-01 08:00:00 UTC", "last_seen": null},
+ {"id": "1002", "ioc": "Bad.Example.Test.", "threat_type": "payload_delivery", "ioc_type": "domain", "malware": "win.fixture", "confidence_level": 50, "first_seen": "2024-06-02 08:00:00 UTC"},
+ {"id": "1003", "ioc": "http://dl.example.test/a.bin#frag", "threat_type": "payload_delivery", "ioc_type": "url", "confidence_level": 100, "first_seen": "2024-06-03 08:00:00 UTC"},
+ {"id": "1004", "ioc": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "ioc_type": "sha256_hash", "confidence_level": 75, "first_seen": "2024-06-03 08:00:00 UTC"},
+ {"id": "1005", "ioc": "d41d8cd98f00b204e9800998ecf8427e", "ioc_type": "md5_hash", "confidence_level": 75},
+ {"id": "1006", "ioc": "127.0.0.1:80", "ioc_type": "ip:port", "confidence_level": 100},
+ {"id": "1007", "ioc": "0.0.0.0:80", "ioc_type": "ip:port", "confidence_level": 100},
+ {"id": "1008", "ioc": "javascript:alert(1)", "ioc_type": "url", "confidence_level": 100},
+ "garbage"
+]}

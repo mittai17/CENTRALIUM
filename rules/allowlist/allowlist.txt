@@ -1,0 +1,8 @@
+# Centralium static allowlist. Format: <kind>:<value>   # optional reason
+# kinds: sha256 | path | process | ip | domain | signer | parent_child
+# Allowlist NEVER overrides a known-malicious hash/IOC/YARA/blocklist hit.
+# 'process' entries are ignored when the executable runs from a suspicious location (/tmp, Temp, ...).
+# 'signer' entries only apply when a signer verifier is configured (or trust_unverified_signer=True).
+# Example (disabled):
+# path:/opt/company/agent/bin/agent
+domain:ok.example.test  # test entry

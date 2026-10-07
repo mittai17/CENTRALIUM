@@ -1,0 +1,38 @@
+# Dashboard only. The endpoint agent is deliberately NOT containerized: it needs host process/network/
+# file telemetry and (for ACTIVE mode) host firewall control. Run `centralium run` on the endpoint.
+#
+#   docker compose up --build dashboard
+#
+# The dashboard reads the agent's SQLite DB (mounted read-write because management actions such as
+# approving a response are audited into it). Access tokens are generated on first start, printed ONCE
+# to the container log, and only their SHA-256 hashes are stored next to the DB.
+# NOTE: this image has NOT been built/tested in the development environment (no docker used).
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.13-slim
+        WORKDIR /app
+        COPY pyproject.toml requirements.txt README.md ./
+        COPY centralium ./centralium
+        COPY dashboard ./dashboard
+        COPY ml ./ml
+        COPY rag ./rag
+        COPY rules ./rules
+        RUN pip install --no-cache-dir -e . && useradd -m centralium
+        USER centralium
+        CMD ["python", "-m", "centralium.agent.main", "dashboard", "--host", "0.0.0.0", "--port", "8765"]
+    ports:
+      - "127.0.0.1:8765:8765"   # bind to loopback on the host; put TLS in front for anything else
+    environment:
+      CENTRALIUM_PATHS__DATA_DIR: /data
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

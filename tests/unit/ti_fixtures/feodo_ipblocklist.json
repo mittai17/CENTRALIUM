@@ -1,0 +1,6 @@
+[
+ {"ip_address": "192.0.2.10", "port": 443, "status": "online", "hostname": null, "as_number": 64496, "country": "ZZ", "first_seen": "2024-08-01 00:00:00", "last_online": "2024-08-05", "malware": "Emotet"},
+ {"ip_address": "192.0.2.11", "port": 8080, "status": "offline", "first_seen": "2024-08-01 00:00:00", "last_online": "2024-08-02", "malware": "QakBot"},
+ {"ip_address": "999.1.1.1", "port": 1, "malware": "Bad"},
+ {"ip_address": "224.0.0.1", "port": 1, "malware": "Multicast"}
+]

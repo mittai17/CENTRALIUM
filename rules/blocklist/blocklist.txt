@@ -1,0 +1,5 @@
+# Centralium static blocklist. Format: <kind>:<value>   # optional reason
+# kinds: sha256 | path | process | ip | domain
+# Matches here are treated as known-malicious (EPP short-circuit). Keep entries precise.
+sha256:275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f  # EICAR test file
+domain:blocked.example.test  # test entry

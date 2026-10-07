@@ -1,0 +1,13 @@
+{
+  "source": "centralium-test",
+  "description": "Safe test IOCs only: EICAR hash, RFC 5737 documentation IPs, .test domains. No real threat data.",
+  "iocs": [
+    {"type": "sha256", "value": "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f", "threat_type": "eicar_test_file", "confidence": 1.0, "note": "EICAR standard antivirus test file"},
+    {"type": "ip", "value": "192.0.2.66", "threat_type": "test_c2", "confidence": 1.0},
+    {"type": "ip", "value": "198.51.100.23", "threat_type": "test_c2", "confidence": 1.0},
+    {"type": "ip", "value": "203.0.113.99", "threat_type": "test_low_confidence", "confidence": 0.3},
+    {"type": "domain", "value": "malicious.example.test", "threat_type": "test_malware_domain", "confidence": 1.0},
+    {"type": "domain", "value": "c2.example.test", "threat_type": "test_c2", "confidence": 1.0},
+    {"type": "url", "value": "http://payload.example.test/dropper.bin", "threat_type": "test_malware_download", "confidence": 1.0}
+  ]
+}

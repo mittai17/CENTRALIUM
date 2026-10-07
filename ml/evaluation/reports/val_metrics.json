@@ -1,0 +1,226 @@
+{
+  "anomaly": {
+    "alert_threshold": 0.9357801180587039,
+    "confusion_matrix": {
+      "labels": [
+        "benign",
+        "malicious"
+      ],
+      "matrix": [
+        [
+          513,
+          27
+        ],
+        [
+          274,
+          426
+        ]
+      ]
+    },
+    "detection_rate": 0.6085714285714285,
+    "f1": 0.7389418907198613,
+    "false_positive_rate": 0.05,
+    "feature_schema_version": "1.0.0",
+    "model_version": "iforest-1.0.0-f9639e81b9-3c2dedc0",
+    "n": 1240,
+    "n_groups_split": 62,
+    "n_rows_split": 1240,
+    "negatives": 540,
+    "note": "unsupervised: trained on benign only; threshold chosen on benign validation",
+    "positives": 700,
+    "precision": 0.9403973509933775,
+    "recall": 0.6085714285714285,
+    "roc_auc": 0.9082433862433862,
+    "status": "ok"
+  },
+  "classifier": {
+    "binary_malicious_vs_benign": {
+      "confusion_matrix": {
+        "labels": [
+          "benign",
+          "malicious"
+        ],
+        "matrix": [
+          [
+            525,
+            15
+          ],
+          [
+            4,
+            696
+          ]
+        ]
+      },
+      "detection_rate": 0.9942857142857143,
+      "f1": 0.9865343727852587,
+      "false_positive_rate": 0.027777777777777776,
+      "n": 1240,
+      "negatives": 540,
+      "positives": 700,
+      "precision": 0.9789029535864979,
+      "recall": 0.9942857142857143,
+      "roc_auc": 0.9987089947089948,
+      "status": "ok"
+    },
+    "feature_schema_version": "1.0.0",
+    "model_version": "rf-1.0.0-f9639e81b9-a1e3b27e",
+    "multiclass": {
+      "accuracy": 0.9733870967741935,
+      "classes_with_too_little_support": [],
+      "confusion_matrix": {
+        "labels": [
+          "benign",
+          "lolbin_abuse",
+          "mass_file_write",
+          "network_anomaly",
+          "persistence",
+          "powershell_abuse",
+          "ransomware",
+          "suspicious_shell"
+        ],
+        "matrix": [
+          [
+            525,
+            2,
+            0,
+            0,
+            13,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            91,
+            0,
+            0,
+            0,
+            1,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            100,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            100,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            4,
+            0,
+            0,
+            0,
+            94,
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            99,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            100,
+            0
+          ],
+          [
+            0,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            98
+          ]
+        ]
+      },
+      "macro_f1": 0.9689464145720259,
+      "n": 1240,
+      "per_class": {
+        "benign": {
+          "f1": 0.9822263797942001,
+          "precision": 0.9924385633270322,
+          "recall": 0.9722222222222222,
+          "support": 540
+        },
+        "lolbin_abuse": {
+          "f1": 0.9333333333333333,
+          "precision": 0.9578947368421052,
+          "recall": 0.91,
+          "support": 100
+        },
+        "mass_file_write": {
+          "f1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 100
+        },
+        "network_anomaly": {
+          "f1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 100
+        },
+        "persistence": {
+          "f1": 0.9082125603864735,
+          "precision": 0.8785046728971962,
+          "recall": 0.94,
+          "support": 100
+        },
+        "powershell_abuse": {
+          "f1": 0.99,
+          "precision": 0.99,
+          "recall": 0.99,
+          "support": 100
+        },
+        "ransomware": {
+          "f1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 100
+        },
+        "suspicious_shell": {
+          "f1": 0.937799043062201,
+          "precision": 0.8990825688073395,
+          "recall": 0.98,
+          "support": 100
+        }
+      },
+      "status": "ok"
+    },
+    "n_groups_split": 62,
+    "n_rows_split": 1240
+  },
+  "dataset_version": "synthetic-g1.0-s1337-x1-f9639e81b9",
+  "disclaimer": "Metrics are computed on SYNTHETIC data and demonstrate the pipeline only; they are not evidence of real-world detection performance.",
+  "generated_at": "2026-10-07T13:59:43.036469+00:00",
+  "split": "val",
+  "synthetic_data": true
+}

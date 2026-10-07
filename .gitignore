@@ -1,0 +1,70 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+
+# Testing, coverage, linting & type-checking caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build & packaging artifacts
+build/
+dist/
+out/
+*.egg-info/
+*.egg
+
+# Frontend dependencies & build artifacts
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+*.tsbuildinfo
+.turbo/
+dashboard/frontend/node_modules/
+dashboard/frontend/out/
+dashboard/frontend/.next/
+dashboard/frontend/*.tsbuildinfo
+
+# Runtime & demo data (never commit endpoint data, DBs, graphs, quarantine, logs)
+data/
+!data/.gitkeep
+ml/datasets/data/
+!ml/datasets/data/.gitkeep
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.kuzu
+/quarantine/
+
+# Models & ML artifacts (downloaded or trained, never committed)
+*.gguf
+data/models/
+data/llama.cpp/
+ml/models/*.joblib
+ml/models/*.onnx
+
+# Environment, secrets & local configs
+.env
+.env.*
+dashboard_tokens.json
+
+# Logs & temporary files
+*.log
+screenshots/
+
+# OS-generated files
+.DS_Store
+Thumbs.db

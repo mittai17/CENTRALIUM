@@ -1,0 +1,4 @@
+# Feodo Tracker Botnet C2 IP Blocklist (FIXTURE)
+192.0.2.20
+192.0.2.21
+not-an-ip

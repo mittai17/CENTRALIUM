@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "centralium"
+version = "0.1.0"
+description = "Centralium: local-first Linux/Windows EDR/EPP prototype (deterministic EPP + ML + graph + local RAG/LLM)"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "pydantic>=2.13",
+  "typer>=0.27",
+  "psutil>=7.2",
+  "numpy>=2.5",
+  "scikit-learn>=1.9",
+  "joblib>=1.6",
+  "fastapi>=0.142",
+  "uvicorn>=0.54",
+  "httpx>=0.28",
+  "cryptography>=45",  # Ed25519 signed-update/baseline verification (self_protection)
+]
+
+[project.optional-dependencies]
+# Each has a graceful fallback in its owning module; all have 3.14 wheels (verified on dev env).
+yara = ["yara-python>=4.5"]
+graph = ["kuzu>=0.11"]
+static = ["pefile>=2024.8.26", "pyelftools>=0.33"]
+rag = ["sqlite-vec>=0.1.9"]
+onnx = ["onnxruntime>=1.30"]
+onnx-export = ["skl2onnx>=1.20", "onnx>=1.20"]  # only needed to (re)export models to ONNX
+llm = []  # llama.cpp runtime (llama-cpp-python or llama-server) is installed separately; see README
+dev = ["pytest>=9", "pytest-asyncio>=1.4", "ruff>=0.16", "mypy>=2.4", "types-psutil>=7"]
+ui-check = ["playwright>=1.50"]  # optional: browser screenshot check of the dashboard
+all = ["centralium[yara,graph,static,rag,onnx,onnx-export,dev]"]
+
+[project.scripts]
+centralium = "centralium.agent.main:app"
+
+[tool.setuptools.packages.find]
+include = ["centralium*", "ml*", "rag*", "dashboard*"]
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
+markers = [
+  "integration: multi-module tests",
+  "e2e: end-to-end scenario tests (demo/test mode only, never destructive)",
+  "performance: benchmarks (measured, not asserted against hard numbers)",
+  "security: security regression tests",
+  "ml: ML pipeline tests",
+]
+filterwarnings = ["ignore:Using .httpx. with"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+extend-exclude = [".venv", "dashboard/frontend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "C4", "RUF"]
+ignore = ["S101", "S603", "S607", "RUF012"]  # S101 asserts in tests; subprocess uses arg arrays
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "B", "E501"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["centralium"]
+exclude = ["^.venv/"]
+
+[[tool.mypy.overrides]]
+module = ["yara", "kuzu", "sqlite_vec", "pefile", "elftools.*", "onnxruntime", "joblib", "sklearn.*", "psutil"]
+ignore_missing_imports = true

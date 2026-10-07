@@ -1,0 +1,26 @@
+{
+  "batch": {
+    "anomaly_rows_per_sec": 39332.546656920065,
+    "batch_size": 256,
+    "classifier_rows_per_sec": 59959.21438413415
+  },
+  "machine": {
+    "cpu_count": 12,
+    "platform": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44",
+    "python": "3.14.7"
+  },
+  "measured_at": "2026-10-07T14:00:28.509255+00:00",
+  "model_version": "anomaly:iforest-1.0.0-f9639e81b9-3c2dedc0+classifier:rf-1.0.0-f9639e81b9-a1e3b27e",
+  "single_event": {
+    "latency_ms": {
+      "max": 54.448362,
+      "mean": 5.925743586333333,
+      "p50": 5.6988835,
+      "p95": 7.3518242,
+      "p99": 10.042089239999964
+    },
+    "n": 3000,
+    "throughput_events_per_sec": 168.69969395158805
+  },
+  "status": "ok"
+}
