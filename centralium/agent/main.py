@@ -185,9 +185,7 @@ def run(
     daemon: Annotated[
         bool, typer.Option("--daemon", "-d", help="run agent as background daemon process")
     ] = False,
-    pidfile: Annotated[
-        Path | None, typer.Option("--pidfile", help="write daemon PID to this file")
-    ] = None,
+    pidfile: Annotated[Path | None, typer.Option("--pidfile", help="write daemon PID to this file")] = None,
     llm: Annotated[str, typer.Option(help="auto | real | off (a mock is never used in a live run)")] = "auto",
     enable_enforcement: Annotated[
         bool, typer.Option(help="REQUIRED to start in ACTIVE mode (real response actions)")
@@ -351,9 +349,7 @@ def demo(
             # Default: replay both built-in scenarios + replay dataset
             scenarios = build_scenarios() + load_replay_scenarios()
 
-        typer.echo(
-            f"Starting Centralium demo replay ({len(scenarios)} scenarios, simulated only)..."
-        )
+        typer.echo(f"Starting Centralium demo replay ({len(scenarios)} scenarios, simulated only)...")
 
         def _on_scenario_done(res: Any, current: int, total: int) -> None:
             acts = ", ".join(f"{k} x{v}" for k, v in res.actions.items()) if res.actions else "none"
@@ -528,13 +524,15 @@ def mode_set(
             on_conflict="REPLACE",
         )
     typer.echo(
-        json.dumps({
-            "mode": result.value,
-            "input_mode": new_mode,
-            "previous": base.value,
-            "actor": who,
-            "audited": True,
-        })
+        json.dumps(
+            {
+                "mode": result.value,
+                "input_mode": new_mode,
+                "previous": base.value,
+                "actor": who,
+                "audited": True,
+            }
+        )
     )
 
 
@@ -809,11 +807,13 @@ def scan(
             except OSError:
                 continue
             if sz > max_bytes:
-                scan_results.append({
-                    "path": str(f),
-                    "skipped": True,
-                    "reason": f"file larger than {prof.max_scan_file_mb} MB limit",
-                })
+                scan_results.append(
+                    {
+                        "path": str(f),
+                        "skipped": True,
+                        "reason": f"file larger than {prof.max_scan_file_mb} MB limit",
+                    }
+                )
                 continue
 
             sha = sha256_file(f, max_bytes=max_bytes)
@@ -833,14 +833,15 @@ def scan(
             for m in ti_matches:
                 findings.append(
                     Finding(
+                        event_id=ev.event_id,
                         rule_id=f"ti:{m.threat_type or 'hash'}",
-                        source=FindingSource.THREAT_INTEL,
+                        source=FindingSource.HASH,
                         title=f"Threat-intel hash match: {m.threat_type or 'malicious'}",
                         severity=Severity.CRITICAL if m.confidence >= 0.8 else Severity.HIGH,
                         score=round(m.confidence * 100.0, 1),
                         confidence=m.confidence,
                         known_malicious=True,
-                        metadata=m.metadata,
+                        details=m.metadata,
                     )
                 )
 
@@ -849,24 +850,26 @@ def scan(
             if is_mal:
                 any_known_malicious = True
 
-            scan_results.append({
-                "path": str(f),
-                "sha256": sha,
-                "known_malicious": is_mal,
-                "threat_intel_matches": len(ti_matches),
-                "findings": [
-                    {
-                        "source": ff.source.value,
-                        "rule_id": ff.rule_id,
-                        "title": ff.title,
-                        "severity": ff.severity.value,
-                        "score": ff.score,
-                        "known_malicious": ff.known_malicious,
-                    }
-                    for ff in all_f
-                ],
-                "static": static.model_dump(mode="json"),
-            })
+            scan_results.append(
+                {
+                    "path": str(f),
+                    "sha256": sha,
+                    "known_malicious": is_mal,
+                    "threat_intel_matches": len(ti_matches),
+                    "findings": [
+                        {
+                            "source": ff.source.value,
+                            "rule_id": ff.rule_id,
+                            "title": ff.title,
+                            "severity": ff.severity.value,
+                            "score": ff.score,
+                            "known_malicious": ff.known_malicious,
+                        }
+                        for ff in all_f
+                    ],
+                    "static": static.model_dump(mode="json"),
+                }
+            )
 
     output_payload = {
         "target": str(real),

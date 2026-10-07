@@ -31,7 +31,8 @@ and may be incomplete. Add files as Markdown (`## ` sections become chunks; fron
 
 ```python
 from centralium.agent.rag import build_retriever
-rag, report = build_retriever("rag", "data/rag_index.db")   # ingests rag/documents incrementally
+
+rag, report = build_retriever("rag", "data/rag_index.db")  # ingests rag/documents incrementally
 pipeline = Pipeline(config, rag=rag, llm=llm)
 ```
 

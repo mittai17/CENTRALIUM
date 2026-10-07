@@ -55,13 +55,27 @@ def _lat(fn: Any, n: int, warmup: int = 5) -> dict[str, float]:
     }
 
 
+def _cpu_model() -> str:
+    m = platform.processor()
+    if m:
+        return m
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("model name"):
+                    return line.split(":", 1)[1].strip()
+    except OSError:
+        return "unknown"
+    return "unknown"
+
+
 def hardware() -> dict[str, Any]:
     vm = psutil.virtual_memory()
     return {
         "platform": platform.platform(),
         "python": sys.version.split()[0],
         "cpu_count_logical": os.cpu_count(),
-        "cpu_model": platform.processor() or "unknown",
+        "cpu_model": _cpu_model(),
         "ram_total_gb": round(vm.total / 1024**3, 1),
         "ram_available_gb_at_start": round(vm.available / 1024**3, 1),
         "gpu_used": False,
@@ -292,7 +306,7 @@ def run_benchmark(cfg: CentraliumConfig, events: int = 2000, llm_runs: int = 3) 
             update={"demo_mode": True, "test_mode": False, "mode": cfg.mode}
         )
         with build_runtime(
-            fcfg, llm_mode="auto", auto_install_models=True, enable_self_protection=False
+            fcfg, llm_mode="mock", auto_install_models=True, enable_self_protection=False
         ) as rt:
             rep = run_demo(rt)
             result["demo_funnel"] = {
@@ -302,8 +316,14 @@ def run_benchmark(cfg: CentraliumConfig, events: int = 2000, llm_runs: int = 3) 
                 "events": sum(r.events for r in rep.results) + rep.baseline_events,
                 "latency_end_to_end_ms": rep.latency_e2e,
             }
-            # ---------------------------------------------------------------- real LLM
-            result["llm"] = _llm_bench(rt, scenarios, llm_runs)
+        # ---------------------------------------------------------------- real LLM
+        if llm_runs > 0:
+            with build_runtime(
+                fcfg, llm_mode="auto", auto_install_models=True, enable_self_protection=False
+            ) as rt_llm:
+                result["llm"] = _llm_bench(rt_llm, scenarios, llm_runs)
+        else:
+            result["llm"] = {"status": "not measured", "reason": "llm_runs=0"}
     result["peak_rss_mb_process"] = _peak_rss_mb()
     result["headline"] = _headline(result)
     return result
@@ -443,6 +463,46 @@ def write_reports(result: dict[str, Any], md_path: Path, json_path: Path) -> Non
         "",
         f"Demo funnel LLM column uses: {df['llm']['label']}. The LLM column counts actual model calls (a recent analysis of the",
         "same process lineage is reused, see `llm_cached` in the counters).",
+        "",
+        "### Funnel reduction statistics and rates",
+        "",
+        "| stream | transition stage | input events | pass events | pass-through % | reduction % | operational role |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    bw = result.get("workloads", {}).get("benign_dominated", {}).get("funnel", {})
+    if bw:
+        r_b, e_b, m_b = bw.get("raw", 0), bw.get("epp", 0), bw.get("ml", 0)
+        L.append(
+            f"| benign stream | raw -> fast EPP | {r_b} | {e_b} | {100.0 * e_b / r_b if r_b else 0:.1f}% | {100.0 * (1 - e_b / r_b) if r_b else 0:.1f}% | 100% evaluated by fast signature/rule checks |"
+        )
+        L.append(
+            f"| benign stream | EPP -> ML anomaly | {e_b} | {m_b} | {100.0 * m_b / e_b if e_b else 0:.1f}% | {100.0 * (1 - m_b / e_b) if e_b else 0:.1f}% | Filters non-suspicious benign events from ML inference |"
+        )
+    if f:
+        r_d, e_d, m_d, g_d, l_d, inc_d = (
+            f.get("raw", 0),
+            f.get("epp", 0),
+            f.get("ml", 0),
+            f.get("graph", 0),
+            f.get("llm", 0),
+            f.get("incidents", 0),
+        )
+        L.append(
+            f"| demo scenarios | raw -> fast EPP | {r_d} | {e_d} | {100.0 * e_d / r_d if r_d else 0:.1f}% | {100.0 * (1 - e_d / r_d) if r_d else 0:.1f}% | Complete IOC/YARA fast evaluation |"
+        )
+        L.append(
+            f"| demo scenarios | EPP -> ML anomaly | {e_d} | {m_d} | {100.0 * m_d / e_d if e_d else 0:.1f}% | {100.0 * (1 - m_d / e_d) if e_d else 0:.1f}% | Behavior engine gates scannable process/network actions |"
+        )
+        L.append(
+            f"| demo scenarios | ML -> graph | {m_d} | {g_d} | {100.0 * g_d / r_d if r_d else 0:.1f}% | 0.0% | Ingests and correlates all nodes in attack lineage |"
+        )
+        L.append(
+            f"| demo scenarios | pre-risk -> LLM | {r_d} | {l_d} | {100.0 * l_d / r_d if r_d else 0:.1f}% | {100.0 * (1 - l_d / r_d) if r_d else 0:.1f}% | Strict gating: pre-risk threshold, novelty & lineage cache |"
+        )
+        L.append(
+            f"| demo scenarios | LLM -> incidents | {r_d} | {inc_d} | {100.0 * inc_d / r_d if r_d else 0:.1f}% | {100.0 * (1 - inc_d / r_d) if r_d else 0:.1f}% | Lineage aggregation groups alerts into actionable incidents |"
+        )
+    L += [
         "",
         "## Component micro-benchmarks (ms per call unless noted)",
         "",

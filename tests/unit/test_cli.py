@@ -295,7 +295,9 @@ def test_cli_quarantine_restore(tmp_path: Path):
 def test_cli_rag_ingest_and_query(tmp_path: Path):
     docs_dir = tmp_path / "rag" / "documents"
     docs_dir.mkdir(parents=True)
-    (docs_dir / "doc1.md").write_text("# Ransomware Playbook\nStop process and isolate host.\n", encoding="utf-8")
+    (docs_dir / "doc1.md").write_text(
+        "# Ransomware Playbook\nStop process and isolate host.\n", encoding="utf-8"
+    )
     index_db = tmp_path / "rag_index.db"
 
     # Ingest
@@ -362,4 +364,3 @@ def test_cli_benchmark(tmp_path: Path):
     assert res.exit_code == 0
     assert out_md.exists()
     assert out_json.exists()
-

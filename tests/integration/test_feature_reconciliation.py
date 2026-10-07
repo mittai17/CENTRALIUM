@@ -96,20 +96,33 @@ def test_all_event_types_generate_full_ml_schema_coverage():
     eng = DefaultBehaviorEngine()
     events = [
         NormalizedEvent(
-            event_type=EventType.PROCESS_START, pid=10, process_name="proc.exe",
-            command_line="proc.exe --flag", source="test",
+            event_type=EventType.PROCESS_START,
+            pid=10,
+            process_name="proc.exe",
+            command_line="proc.exe --flag",
+            source="test",
         ),
         NormalizedEvent(
-            event_type=EventType.NETWORK_CONNECT, pid=10, process_name="proc.exe",
-            destination_ip="93.184.216.34", destination_port=443, source="test",
+            event_type=EventType.NETWORK_CONNECT,
+            pid=10,
+            process_name="proc.exe",
+            destination_ip="93.184.216.34",
+            destination_port=443,
+            source="test",
         ),
         NormalizedEvent(
-            event_type=EventType.FILE_CREATE, pid=10, process_name="proc.exe",
-            file_path="/tmp/test.txt", source="test",
+            event_type=EventType.FILE_CREATE,
+            pid=10,
+            process_name="proc.exe",
+            file_path="/tmp/test.txt",
+            source="test",
         ),
         NormalizedEvent(
-            event_type=EventType.DNS_QUERY, pid=10, process_name="proc.exe",
-            domain="example.com", source="test",
+            event_type=EventType.DNS_QUERY,
+            pid=10,
+            process_name="proc.exe",
+            domain="example.com",
+            source="test",
         ),
     ]
     for ev in events:
@@ -117,4 +130,3 @@ def test_all_event_types_generate_full_ml_schema_coverage():
         adapted = adapt_for_event(beh.features, ev)
         _, cov = vectorize(adapted)
         assert cov == 1.0, f"Event type {ev.event_type} produced coverage {cov} < 1.0"
-

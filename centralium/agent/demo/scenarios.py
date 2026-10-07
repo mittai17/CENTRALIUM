@@ -558,4 +558,3 @@ def load_replay_scenarios(path: Path | str | None = None) -> list[DemoScenario]:
             )
         )
     return out
-

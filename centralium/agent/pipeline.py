@@ -762,9 +762,8 @@ class Pipeline:
         if self.db is not None:
             self._events_since_graph_snapshot += 1
             now = time.monotonic()
-            if (
-                self._events_since_graph_snapshot >= self._graph_snapshot_interval_events
-                or (self._events_since_graph_snapshot >= 10 and now - self._last_graph_snapshot_time >= 15.0)
+            if self._events_since_graph_snapshot >= self._graph_snapshot_interval_events or (
+                self._events_since_graph_snapshot >= 10 and now - self._last_graph_snapshot_time >= 15.0
             ):
                 self._stage("graph", self.snapshot_graph, 0, out)
 

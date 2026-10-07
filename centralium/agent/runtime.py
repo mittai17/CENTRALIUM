@@ -90,7 +90,6 @@ __all__ = [
 ]
 
 
-
 # --------------------------------------------------------------------------- event loop
 class EventLoop:
     """Bounded queue + worker threads between collectors and the pipeline.

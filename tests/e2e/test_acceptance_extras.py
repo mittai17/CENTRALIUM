@@ -328,15 +328,16 @@ def test_process_suspend_terminate_on_python_throwaway_subprocess():
     time.sleep(0.15)
     try:
         ex = create_executor(runner=RecordingRunner())
+        proc_name = psutil.Process(p.pid).name()
         ev = NormalizedEvent(
             event_type=EventType.PROCESS_START,
             pid=p.pid,
             ppid=os.getpid(),
-            process_name="python",
+            process_name=proc_name,
             executable_path=sys.executable,
             source="test",
         )
-        base = {"event_id": ev.event_id, "pid": p.pid, "process_name": "python"}
+        base = {"event_id": ev.event_id, "pid": p.pid, "process_name": proc_name}
         # 1. Suspend process
         res_suspend = ex.execute(
             PolicyDecision(action=ResponseAction.SUSPEND_PROCESS, allowed=True, target=base),
@@ -400,7 +401,9 @@ def test_network_block_and_isolation_iptables_and_windows_via_mock_runner():
     )
     assert res_ipt.status == ActionStatus.EXECUTED
     ipt_flat = " ".join(" ".join(c) for c in runner_ipt.calls)
-    assert "CENTRALIUM_BLOCK" in ipt_flat and "203.0.113.50" in ipt_flat and runner_ipt.calls[0][0] == "iptables"
+    assert (
+        "CENTRALIUM_BLOCK" in ipt_flat and "203.0.113.50" in ipt_flat and runner_ipt.calls[0][0] == "iptables"
+    )
 
     # Isolation on iptables
     n_ipt_block = len(runner_ipt.calls)
@@ -414,9 +417,7 @@ def test_network_block_and_isolation_iptables_and_windows_via_mock_runner():
 
     # 2. Windows netsh
     runner_win = RecordingRunner()
-    ex_win = create_executor(
-        platform="windows", runner=runner_win, process_backend=RecordingBackend()
-    )
+    ex_win = create_executor(platform="windows", runner=runner_win, process_backend=RecordingBackend())
     res_win = ex_win.execute(
         PolicyDecision(
             action=ResponseAction.BLOCK_CONNECTION,
@@ -437,7 +438,7 @@ def test_network_block_and_isolation_iptables_and_windows_via_mock_runner():
     )
     assert res_iso_win.status == ActionStatus.EXECUTED
     iso_win_flat = " ".join(" ".join(c) for c in runner_win.calls[n_win_block:])
-    assert "Centralium_Isolate" in iso_win_flat
+    assert "advfirewall" in iso_win_flat and "blockinbound,blockoutbound" in iso_win_flat
 
 
 # --------------------------------------------------------------------------- model missing fallback

@@ -621,4 +621,3 @@ def test_pipeline_writes_graph_snapshots_on_incident_and_manually(make_event, db
     # Manual snapshot_graph call also works
     count = p.snapshot_graph()
     assert count >= 1
-
