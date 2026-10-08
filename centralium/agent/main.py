@@ -769,6 +769,10 @@ def scan(
     recursive: Annotated[bool, typer.Option("--recursive", "-r", help="scan directory recursively")] = True,
     max_files: Annotated[int, typer.Option("--max-files", help="max files to scan if directory")] = 500,
     json_out: Annotated[bool, typer.Option("--json", help="force machine-readable JSON output")] = False,
+    quarantine: Annotated[
+        bool,
+        typer.Option("--quarantine", "-q", help="automatically quarantine files detected as known-malicious"),
+    ] = False,
 ) -> None:
     """Scan file or directory: EPP IOC/blocklist + YARA + static analysis + threat intel.
     Exit 1 if any file is known-malicious."""
@@ -861,6 +865,24 @@ def scan(
             if is_mal:
                 any_known_malicious = True
 
+            q_info: dict[str, Any] | None = None
+            if quarantine and is_mal:
+                try:
+                    qm = _qm(cfg)
+                    reasons = (
+                        [ff.title for ff in all_f if ff.known_malicious]
+                        or ["Known malicious file detected"]
+                    )
+                    sources = [ff.source.value for ff in all_f if ff.known_malicious] or ["scan"]
+                    rec = qm.quarantine(f, reasons=reasons, sources=sources)
+                    q_info = {
+                        "quarantined": True,
+                        "quarantine_id": rec.quarantine_id,
+                        "quarantine_path": rec.quarantine_path,
+                    }
+                except Exception as exc:
+                    q_info = {"quarantined": False, "error": str(exc)}
+
             scan_results.append(
                 {
                     "path": str(f),
@@ -879,6 +901,7 @@ def scan(
                         for ff in all_f
                     ],
                     "static": static.model_dump(mode="json"),
+                    "quarantine": q_info,
                 }
             )
 
@@ -898,7 +921,10 @@ def scan(
         for r in scan_results:
             if r.get("known_malicious") or r.get("findings"):
                 nf = len(r.get("findings", []))
-                typer.echo(f"  [MALICIOUS: {r.get('known_malicious')}] {r['path']} (findings: {nf})")
+                q_text = ""
+                if r.get("quarantine") and r["quarantine"].get("quarantined"):
+                    q_text = f" -> QUARANTINED ({r['quarantine']['quarantine_id']})"
+                typer.echo(f"  [MALICIOUS: {r.get('known_malicious')}] {r['path']} (findings: {nf}){q_text}")
 
     raise typer.Exit(1 if any_known_malicious else 0)
 
