@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import random
 import statistics
 import sys
 import tempfile
@@ -233,6 +234,16 @@ def run_benchmark(cfg: CentraliumConfig, events: int = 2000, llm_runs: int = 3) 
                 micro["ml_inference_from_behavior_features"] = _lat(
                     lambda i: rt.ml.predict(*samples[i % len(samples)]), 1500
                 )
+                from centralium.agent.ml import OnnxMLEngine
+
+                onnx_engine = OnnxMLEngine(rt.config.paths.models_dir)
+                if onnx_engine.available():
+                    micro["ml_inference_onnx"] = _lat(
+                        lambda i: onnx_engine.predict(*samples[i % len(samples)]), 1500
+                    )
+                    sk_p50 = micro["ml_inference_from_behavior_features"]["p50_ms"]
+                    on_p50 = micro["ml_inference_onnx"]["p50_ms"]
+                    micro["ml_onnx_speedup"] = round(sk_p50 / on_p50, 2) if on_p50 > 0 else 1.0
             else:
                 micro["ml_inference_from_behavior_features"] = "not measured: no ML models"
             # graph insert (fresh in-memory-backed adapter ingest) and query
@@ -558,3 +569,71 @@ def write_reports(result: dict[str, Any], md_path: Path, json_path: Path) -> Non
     ]
     md_path.parent.mkdir(parents=True, exist_ok=True)
     md_path.write_text("\n".join(L) + "\n", encoding="utf-8")
+
+
+def benchmark_ml_runtimes(
+    models_dir: Path | str | None = None,
+    n_samples: int = 500,
+) -> dict[str, Any]:
+    """Compare latency and throughput between scikit-learn and ONNX Runtime inference."""
+    from centralium.agent.ml.engine import OnnxMLEngine, SklearnMLEngine
+    from ml.features.schema import FEATURE_NAMES
+
+    sk_engine = SklearnMLEngine(models_dir=models_dir, use_onnx=False)
+    on_engine = OnnxMLEngine(models_dir=models_dir)
+
+    if not sk_engine.available() or not on_engine.available():
+        return {"error": "ML models or ONNX models not available"}
+
+    # Generate synthetic feature vectors
+    prng = random.Random(42)  # noqa: S311
+    feature_samples = [{name: prng.gauss(0.0, 1.0) for name in FEATURE_NAMES} for _ in range(n_samples)]
+
+    # Warmup
+    for f in feature_samples[:30]:
+        sk_engine.predict_features(f)
+        on_engine.predict_features(f)
+
+    # Measure Sklearn
+    sk_times: list[float] = []
+    for f in feature_samples:
+        t0 = time.perf_counter()
+        sk_engine.predict_features(f)
+        sk_times.append((time.perf_counter() - t0) * 1000.0)
+
+    # Measure ONNX
+    on_times: list[float] = []
+    for f in feature_samples:
+        t0 = time.perf_counter()
+        on_engine.predict_features(f)
+        on_times.append((time.perf_counter() - t0) * 1000.0)
+
+    sk_sorted = sorted(sk_times)
+    on_sorted = sorted(on_times)
+    n = len(feature_samples)
+
+    sk_mean = float(statistics.mean(sk_times))
+    on_mean = float(statistics.mean(on_times))
+    sk_p50 = float(sk_sorted[n // 2])
+    on_p50 = float(on_sorted[n // 2])
+    sk_p95 = float(sk_sorted[int(n * 0.95)])
+    on_p95 = float(on_sorted[int(n * 0.95)])
+
+    speedup = round(sk_p50 / on_p50, 2) if on_p50 > 0 else 1.0
+
+    return {
+        "samples": n_samples,
+        "sklearn": {
+            "p50_ms": round(sk_p50, 3),
+            "p95_ms": round(sk_p95, 3),
+            "mean_ms": round(sk_mean, 3),
+            "throughput_events_per_s": round(1000.0 / sk_mean, 1) if sk_mean > 0 else 0.0,
+        },
+        "onnx": {
+            "p50_ms": round(on_p50, 3),
+            "p95_ms": round(on_p95, 3),
+            "mean_ms": round(on_mean, 3),
+            "throughput_events_per_s": round(1000.0 / on_mean, 1) if on_mean > 0 else 0.0,
+        },
+        "speedup_ratio": speedup,
+    }

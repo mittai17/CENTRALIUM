@@ -1,0 +1,47 @@
+id: "pb-ransomware-containment"
+name: "Ransomware Rapid Containment and File Protection"
+description: "Takes immediate protective file snapshot, suspends ransomware process, isolates endpoint from network shares, and terminates malicious payload."
+categories:
+  - "ransomware"
+min_severity: "HIGH"
+author: "Centralium SecOps"
+version: "1.0"
+tags:
+  - "ransomware"
+  - "t1486"
+  - "containment"
+steps:
+  - id: "step-1-snapshot"
+    action: "SNAPSHOT_PROTECT"
+    target_field: "file_path"
+    description: "Point-in-time protective snapshot of critical document stores"
+    require_approval: false
+    continue_on_failure: true
+
+  - id: "step-2-suspend"
+    action: "SUSPEND_PROCESS"
+    target_field: "pid"
+    description: "Immediately freeze encrypting process execution via SIGSTOP"
+    require_approval: false
+    continue_on_failure: false
+
+  - id: "step-3-isolate"
+    action: "ISOLATE_ENDPOINT"
+    target_field: "endpoint"
+    description: "Sever network access to prevent encryption of mapped SMB/NFS shares"
+    require_approval: true
+    continue_on_failure: false
+
+  - id: "step-4-terminate"
+    action: "TERMINATE_PROCESS"
+    target_field: "pid"
+    description: "Terminate the ransomware process"
+    require_approval: false
+    continue_on_failure: false
+
+  - id: "step-5-quarantine"
+    action: "QUARANTINE_FILE"
+    target_field: "executable_path"
+    description: "Quarantine the ransomware binary executable"
+    require_approval: false
+    continue_on_failure: true

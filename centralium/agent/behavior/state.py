@@ -233,7 +233,7 @@ class BehaviorState:
                 self._observe_file(event, key, ts, entropy)
             elif et == EventType.PROCESS_INJECT:
                 self.injections.append(ts)
-            elif et == EventType.PRIVILEGE_CHANGE:
+            elif et in {EventType.PRIVILEGE_CHANGE, EventType.PRIVILEGE_ELEVATION}:
                 self.priv_changes.append(ts)
             if et in {
                 EventType.PERSISTENCE,

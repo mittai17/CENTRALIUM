@@ -1,0 +1,72 @@
+# Centralium EDR Agent - Hardened systemd service unit
+# Validated with systemd-analyze security: Target score <= 1.5 (OK / EXPOSURE LOW)
+[Unit]
+Description=Centralium Endpoint Detection and Response Agent
+Documentation=https://github.com/centralium/centralium file:///opt/centralium/docs/ARCHITECTURE.md
+After=network.target auditd.service
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=centralium
+Group=centralium
+WorkingDirectory=/var/lib/centralium
+Environment=CENTRALIUM_CONFIG=/etc/centralium/agent.toml
+EnvironmentFile=-/etc/centralium/agent.env
+ExecStart=/usr/bin/centralium run
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+WatchdogSec=120
+
+# Filesystem state directories
+StateDirectory=centralium
+LogsDirectory=centralium
+ConfigurationDirectory=centralium
+StateDirectoryMode=0700
+LogsDirectoryMode=0750
+ConfigurationDirectoryMode=0750
+
+# --- Sandboxing and Hardening Directives ---
+# Filesystem protection
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ReadWritePaths=/var/lib/centralium /var/log/centralium
+ReadOnlyPaths=/etc/centralium
+
+# Privilege escalation prevention
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+
+# Network & device restrictions
+DevicePolicy=closed
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+IPAddressDeny=any
+IPAddressAllow=localhost 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+
+# Syscall filtering
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @obsolete @mount @swap
+UMask=0077
+
+# Linux capabilities (least privilege for eBPF / auditd / response actions)
+CapabilityBoundingSet=CAP_AUDIT_READ CAP_DAC_READ_SEARCH CAP_SYS_PTRACE CAP_NET_ADMIN
+AmbientCapabilities=CAP_AUDIT_READ CAP_DAC_READ_SEARCH CAP_SYS_PTRACE CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target

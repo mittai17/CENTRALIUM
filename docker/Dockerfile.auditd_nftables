@@ -1,0 +1,40 @@
+# Container harness for live Linux auditd and nftables/iptables verification
+# Requires NET_ADMIN capability for netfilter manipulation in container netns.
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    auditd \
+    audispd-plugins \
+    iptables \
+    nftables \
+    iproute2 \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy Centralium codebase
+COPY pyproject.toml README.md ./
+COPY centralium/ ./centralium/
+COPY tests/ ./tests/
+COPY rules/ ./rules/
+COPY ml/ ./ml/
+COPY rag/ ./rag/
+COPY docker/ ./docker/
+
+# Install in a virtual environment
+RUN python3 -m venv /app/.venv && \
+    /app/.venv/bin/pip install --upgrade pip setuptools wheel && \
+    /app/.venv/bin/pip install -e ".[dev]" pytest-randomly
+
+# Ensure audit directory exists
+RUN mkdir -p /var/log/audit
+
+ENTRYPOINT ["/bin/bash", "/app/docker/run_container_tests.sh"]

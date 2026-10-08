@@ -1,0 +1,27 @@
+title: Suspicious PowerShell Encoded Command Execution
+id: f1a2b3c4-1111-4000-8000-000000000001
+status: production
+description: Detects PowerShell executing with base64 encoded command arguments commonly used to bypass command-line inspection.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+author: Centralium EDR Engineering
+date: 2026-10-07
+level: high
+tags:
+  - attack.execution
+  - attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith:
+      - powershell.exe
+      - pwsh.exe
+    CommandLine|contains:
+      - -enc
+      - -encodedcommand
+      - FromBase64String
+  condition: selection
+falsepositives:
+  - Legitimate automated administrative scripts with encoded payload

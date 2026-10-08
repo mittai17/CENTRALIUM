@@ -38,8 +38,13 @@ _TYPE_ALIASES = {
     "delete": EventType.FILE_DELETE,
     "create": EventType.FILE_CREATE,
     "registry_set": EventType.REGISTRY_MODIFY,
-    "reg_set": EventType.REGISTRY_MODIFY,
     "login": EventType.AUTH,
+    "auth": EventType.AUTH,
+    "auth_login": EventType.AUTH_LOGIN,
+    "auth_logout": EventType.AUTH_LOGOUT,
+    "auth_fail": EventType.AUTH_FAIL,
+    "privilege_elevation": EventType.PRIVILEGE_ELEVATION,
+    "privilege_change": EventType.PRIVILEGE_CHANGE,
     "inject": EventType.PROCESS_INJECT,
 }
 _KEYMAP = {

@@ -1,0 +1,24 @@
+title: Outbound Network Connection to Common C2 Ports
+id: f1a2b3c4-4444-4000-8000-000000000004
+status: production
+description: Detects outbound network connections to suspicious TCP/UDP ports frequently used by C2 beacons and reverse shells.
+references:
+  - https://attack.mitre.org/techniques/T1071/
+author: Centralium EDR Engineering
+date: 2026-10-07
+level: medium
+tags:
+  - attack.command_and_control
+  - attack.t1071
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationPort:
+      - 4444
+      - 1337
+      - 8888
+      - 6667
+  condition: selection
+falsepositives:
+  - Local internal testing services on port 8888

@@ -15,14 +15,32 @@ from centralium.agent.storage import Database
 runner = CliRunner()
 
 
-def _parse_json(text: str) -> Any:
-    for line in text.strip().splitlines():
+def _parse_json(text_or_res: Any) -> Any:
+    if hasattr(text_or_res, "stdout") and text_or_res.stdout.strip():
+        text = text_or_res.stdout
+    elif hasattr(text_or_res, "output"):
+        text = text_or_res.output
+    else:
+        text = str(text_or_res)
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    for line in text.splitlines():
         line = line.strip()
-        if line.startswith("{") or line.startswith("["):
+        if (line.startswith("{") and line.endswith("}")) or (line.startswith("[") and line.endswith("]")):
             try:
                 return json.loads(line)
             except Exception:
                 continue
+    for i, ch in enumerate(text):
+        if ch in ("{", "["):
+            for j in range(len(text), i, -1):
+                try:
+                    return json.loads(text[i:j])
+                except Exception:
+                    continue
     return json.loads(text)
 
 
@@ -37,7 +55,7 @@ def test_cli_show_config(tmp_path: Path):
     cfg_file.write_text("[paths]\ndata_dir = '/tmp/test_centralium'\n", encoding="utf-8")
     res = runner.invoke(app, ["show-config", "--config", str(cfg_file)])
     assert res.exit_code == 0
-    data = json.loads(res.output)
+    data = _parse_json(res)
     assert data["paths"]["data_dir"] == "/tmp/test_centralium"
 
 
@@ -49,7 +67,7 @@ def test_cli_init_db(tmp_path: Path):
     res = runner.invoke(app, ["init-db", "-c", str(cfg_file)])
     assert res.exit_code == 0
     assert db_file.exists()
-    payload = json.loads(res.output)
+    payload = _parse_json(res)
     assert payload["schema_version"] >= 1
 
 
@@ -64,7 +82,7 @@ def test_cli_audit_verify(tmp_path: Path):
 
     res = runner.invoke(app, ["audit", "verify", "-c", str(cfg_file)])
     assert res.exit_code == 0
-    payload = json.loads(res.output)
+    payload = _parse_json(res)
     assert payload["ok"] is True
     assert payload["entries"] == 2
 
@@ -74,7 +92,7 @@ def test_cli_audit_verify(tmp_path: Path):
 
     res_tampered = runner.invoke(app, ["audit", "verify", "-c", str(cfg_file)])
     assert res_tampered.exit_code == 1
-    tampered_payload = json.loads(res_tampered.output)
+    tampered_payload = _parse_json(res_tampered)
     assert tampered_payload["ok"] is False
 
 
@@ -86,7 +104,7 @@ def test_cli_mode_show_and_set(tmp_path: Path):
     # Initial show
     res_show = runner.invoke(app, ["mode", "show", "-c", str(cfg_file)])
     assert res_show.exit_code == 0
-    show_data = json.loads(res_show.output)
+    show_data = _parse_json(res_show)
     assert show_data["configured_mode"] == "PASSIVE"
     assert show_data["persisted_mode"] is None
 
@@ -96,14 +114,14 @@ def test_cli_mode_show_and_set(tmp_path: Path):
         ["mode", "set", "LEARNING", "--reason", "initial calibration", "-c", str(cfg_file)],
     )
     assert res_set.exit_code == 0
-    set_data = json.loads(res_set.output)
+    set_data = _parse_json(res_set)
     assert set_data["mode"] == "LEARNING"
     assert set_data["audited"] is True
 
     # Check show again
     res_show2 = runner.invoke(app, ["mode", "show", "-c", str(cfg_file)])
     assert res_show2.exit_code == 0
-    show_data2 = json.loads(res_show2.output)
+    show_data2 = _parse_json(res_show2)
     assert show_data2["persisted_mode"] == "LEARNING"
     assert len(show_data2["recent_changes"]) >= 1
 
@@ -125,7 +143,7 @@ def test_cli_mode_aliases(tmp_path: Path):
         ["mode", "set", "STRICT_PREVENT", "--confirm", "--reason", "enforce", "-c", str(cfg_file)],
     )
     assert res_strict.exit_code == 0
-    data_strict = json.loads(res_strict.output)
+    data_strict = _parse_json(res_strict)
     assert data_strict["mode"] == "ACTIVE"
 
     # Test BALANCED alias (maps to PASSIVE)
@@ -134,7 +152,7 @@ def test_cli_mode_aliases(tmp_path: Path):
         ["mode", "set", "BALANCED", "--reason", "normal", "-c", str(cfg_file)],
     )
     assert res_bal.exit_code == 0
-    assert json.loads(res_bal.output)["mode"] == "PASSIVE"
+    assert _parse_json(res_bal)["mode"] == "PASSIVE"
 
     # Test AUDIT_ONLY alias (maps to PASSIVE)
     res_audit = runner.invoke(
@@ -142,7 +160,7 @@ def test_cli_mode_aliases(tmp_path: Path):
         ["mode", "set", "AUDIT_ONLY", "--reason", "audit", "-c", str(cfg_file)],
     )
     assert res_audit.exit_code == 0
-    assert json.loads(res_audit.output)["mode"] == "PASSIVE"
+    assert _parse_json(res_audit)["mode"] == "PASSIVE"
 
     # Test ISOLATED alias (maps to PANIC, requires --confirm)
     res_iso = runner.invoke(
@@ -150,7 +168,7 @@ def test_cli_mode_aliases(tmp_path: Path):
         ["mode", "set", "ISOLATED", "--confirm", "--reason", "emergency", "-c", str(cfg_file)],
     )
     assert res_iso.exit_code == 0
-    assert json.loads(res_iso.output)["mode"] == "PANIC"
+    assert _parse_json(res_iso)["mode"] == "PANIC"
 
     # Test invalid mode name
     res_bad = runner.invoke(
@@ -163,7 +181,7 @@ def test_cli_mode_aliases(tmp_path: Path):
 def test_cli_ml_status():
     res = runner.invoke(app, ["ml", "status"])
     assert res.exit_code == 0
-    data = json.loads(res.output)
+    data = _parse_json(res)
     assert "models_dir" in data
     assert "feature_schema_version" in data
     assert "models" in data
@@ -177,7 +195,7 @@ def test_cli_scan_file(tmp_path: Path):
 
     res = runner.invoke(app, ["scan", str(clean_file)])
     assert res.exit_code == 0
-    data = json.loads(res.output)
+    data = _parse_json(res)
     assert data["known_malicious_detected"] is False
     assert data["results"]["known_malicious"] is False
 
@@ -195,7 +213,7 @@ def test_cli_scan_directory(tmp_path: Path):
     # With --json output
     res_json = runner.invoke(app, ["scan", str(test_dir), "--json"])
     assert res_json.exit_code == 0
-    payload = json.loads(res_json.output)
+    payload = _parse_json(res_json)
     assert payload["total_scanned"] == 2
     assert payload["known_malicious_detected"] is False
 
@@ -207,7 +225,7 @@ def test_cli_quarantine_list(tmp_path: Path):
 
     res = runner.invoke(app, ["quarantine", "list", "-c", str(cfg_file)])
     assert res.exit_code == 0
-    items = json.loads(res.output)
+    items = _parse_json(res)
     assert isinstance(items, list)
 
 

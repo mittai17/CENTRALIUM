@@ -40,9 +40,17 @@ def _h(token: str) -> str:
 class Principal:
     role: str
     ident: str  # non-secret identifier (role + hash prefix) used for audit logging
+    endpoint_groups: tuple[str, ...] | None = None  # None indicates unrestricted access
+    email: str | None = None
+    auth_provider: str = "token"  # "token" | "oidc"
 
     def at_least(self, role: str) -> bool:
         return RANK[self.role] >= RANK[role]
+
+    def can_access_endpoint_group(self, group: str | None) -> bool:
+        if self.role == "admin" or self.endpoint_groups is None or group is None:
+            return True
+        return group in self.endpoint_groups
 
 
 class TokenStore:

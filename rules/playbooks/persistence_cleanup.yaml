@@ -1,0 +1,32 @@
+id: "pb-persistence-cleanup"
+name: "Malicious Persistence Mechanism Removal"
+description: "Suspends running persistent process, terminates it, and quarantines persistence binary payload."
+categories:
+  - "persistence"
+min_severity: "MEDIUM"
+author: "Centralium SecOps"
+version: "1.0"
+tags:
+  - "persistence"
+  - "t1547"
+steps:
+  - id: "step-1-suspend"
+    action: "SUSPEND_PROCESS"
+    target_field: "pid"
+    description: "Suspend persistence mechanism process"
+    require_approval: false
+    continue_on_failure: false
+
+  - id: "step-2-terminate"
+    action: "TERMINATE_PROCESS"
+    target_field: "pid"
+    description: "Terminate persistent process"
+    require_approval: false
+    continue_on_failure: false
+
+  - id: "step-3-quarantine"
+    action: "QUARANTINE_FILE"
+    target_field: "file_path"
+    description: "Quarantine startup/run-key persistence executable"
+    require_approval: false
+    continue_on_failure: true

@@ -233,6 +233,48 @@ def hunt(
     return {"total": total, "grouped_by": group, "items": rows}
 
 
+class NLHuntRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question: str = Field(min_length=1, max_length=1000)
+
+
+@router.post("/hunt/nl")
+def hunt_nl(
+    body: NLHuntRequest, request: Request, _: Principal = Depends(require("analyst"))
+) -> dict[str, Any]:
+    from dashboard.backend import nl_hunt
+
+    try:
+        res = nl_hunt.translate_nl_to_hunt(body.question)
+    except nl_hunt.RawCommandOrSQLError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return res.model_dump()
+
+
+class CopilotChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    incident_id: str = Field(min_length=1, max_length=100)
+    question: str = Field(min_length=1, max_length=1000)
+
+
+@router.post("/copilot/chat")
+def copilot_chat(
+    body: CopilotChatRequest, request: Request, _: Principal = Depends(require("analyst"))
+) -> dict[str, Any]:
+    from dashboard.backend import copilot
+
+    ctx = ctx_of(request)
+    try:
+        resp = copilot.run_copilot_investigation(body.incident_id, body.question, ctx.db)
+        return resp.model_dump()
+    except copilot.CopilotToolSecurityError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, f"Copilot investigation failed: {exc}") from exc
+
+
 # ---------------------------------------------------------------- sync ingest
 class IngestBatch(BaseModel):
     model_config = ConfigDict(extra="forbid")

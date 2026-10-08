@@ -20,8 +20,10 @@ None. (Table of upstream references: docs/REUSE_MATRIX.md.)
 | anyio | 4.15.1 | MIT |
 | ast_serialize | 0.12.1 | MIT |
 | certifi | 2026.7.22 | MPL-2.0 |
+| cffi | 2.1.1 | MIT-0 |
 | click | 8.5.0 | BSD-3-Clause |
 | cloudpickle | 3.1.2 | BSD-3-Clause |
+| cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause |
 | fastapi | 0.142.2 | MIT |
 | flatbuffers | 25.12.19 | Apache 2.0 |
 | h11 | 0.16.0 | MIT |
@@ -34,10 +36,12 @@ None. (Table of upstream references: docs/REUSE_MATRIX.md.)
 | librt | 0.16.0 | MIT |
 | markdown-it-py | 4.2.0 | MIT License |
 | mdurl | 0.1.2 | MIT License |
+| ml_dtypes | 0.6.0 | Apache-2.0 |
 | mypy | 2.4.0 | MIT |
 | mypy_extensions | 1.1.0 | MIT |
 | narwhals | 2.26.0 | MIT |
 | numpy | 2.5.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 |
+| onnx | 1.23.2 | Apache-2.0 |
 | onnxruntime | 1.30.0 | MIT License |
 | opentelemetry-api | 1.45.1 | Apache-2.0 |
 | packaging | 26.3 | Apache-2.0 OR BSD-2-Clause |
@@ -46,21 +50,24 @@ None. (Table of upstream references: docs/REUSE_MATRIX.md.)
 | pluggy | 1.6.0 | MIT |
 | protobuf | 7.36.2 | 3-Clause BSD License |
 | psutil | 7.2.2 | BSD-3-Clause |
+| pycparser | 3.0 | BSD-3-Clause |
 | pydantic | 2.13.5 | MIT |
 | pydantic_core | 2.46.5 | MIT |
 | pyelftools | 0.33 | Public domain |
 | Pygments | 2.21.0 | BSD-2-Clause |
-| pytest | 9.1.1 | MIT |
 | pytest-asyncio | 1.4.0 | Apache-2.0 |
+| pytest | 9.1.1 | MIT |
 | rich | 15.0.0 | MIT |
 | ruff | 0.16.10 | MIT |
 | scikit-learn | 1.9.1 | BSD-3-Clause |
 | scipy | 1.18.1 | BSD License |
 | shellingham | 1.5.4 | ISC License |
+| skl2onnx | 1.20.0 | Apache License v2.0 |
 | sqlite-vec | 0.1.9 | MIT License, Apache License, Version 2.0 |
 | starlette | 1.7.0 | BSD-3-Clause |
 | threadpoolctl | 3.7.0 | BSD-3-Clause |
 | typer | 0.27.3 | MIT |
+| types-psutil | 7.2.2.20260906 | Apache-2.0 |
 | typing-inspection | 0.4.4 | MIT |
 | typing_extensions | 4.16.0 | PSF-2.0 |
 | uvicorn | 0.54.0 | BSD-3-Clause |

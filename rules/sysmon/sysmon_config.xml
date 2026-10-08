@@ -1,0 +1,143 @@
+<!--
+  Centralium Minimal Production Sysmon Configuration
+  SchemaVersion: 4.90
+  Purpose: Targeted high-signal telemetry capture for Centralium EDR pipeline.
+  Emits: Process Creation (1), Network Connect (3), Image Load (7),
+         Remote Thread Injection (8), LSASS Access (10), File Creation (11),
+         Registry Persistence (12/13/14), DNS Query (22), Process Tampering (25).
+-->
+<Sysmon schemaversion="4.90">
+  <!-- Hash configuration: SHA256 for EPP / IOC lookups -->
+  <HashAlgorithms>SHA256</HashAlgorithms>
+  <CheckRevocation />
+
+  <EventFiltering>
+    <!-- ================================================================= -->
+    <!-- Event ID 1: Process Creation                                      -->
+    <!-- Capture all executions with full command lines and parentage.     -->
+    <!-- Exclude benign high-volume system noise.                          -->
+    <!-- ================================================================= -->
+    <RuleGroup name="ProcessCreate" groupRelation="or">
+      <ProcessCreate onmatch="exclude">
+        <!-- Benign system pollers without arguments -->
+        <CommandLine condition="is">C:\Windows\System32\audiodg.exe</CommandLine>
+        <Image condition="is">C:\Windows\System32\conhost.exe</Image>
+      </ProcessCreate>
+    </RuleGroup>
+
+    <!-- ================================================================= -->
+    <!-- Event ID 3: Network Connection                                    -->
+    <!-- Monitor outbound traffic, especially non-standard ports & LOLBINs -->
+    <!-- ================================================================= -->
+    <RuleGroup name="NetworkConnect" groupRelation="or">
+      <NetworkConnect onmatch="include">
+        <!-- Suspicious outbound interactive ports -->
+        <DestinationPort condition="is">4444</DestinationPort>
+        <DestinationPort condition="is">1337</DestinationPort>
+        <DestinationPort condition="is">8080</DestinationPort>
+        <DestinationPort condition="is">8443</DestinationPort>
+        <DestinationPort condition="is">9001</DestinationPort>
+        <!-- Outbound connections by script engines and administrative shells -->
+        <Image condition="image">powershell.exe</Image>
+        <Image condition="image">cmd.exe</Image>
+        <Image condition="image">certutil.exe</Image>
+        <Image condition="image">bitsadmin.exe</Image>
+        <Image condition="image">mshta.exe</Image>
+        <Image condition="image">cscript.exe</Image>
+        <Image condition="image">wscript.exe</Image>
+        <Image condition="image">rundll32.exe</Image>
+      </NetworkConnect>
+    </RuleGroup>
+
+    <!-- ================================================================= -->
+    <!-- Event ID 7: Image Loaded (DLLs / Drivers)                         -->
+    <!-- Monitor unsigned modules or DLLs loaded from untrusted user paths -->
+    <!-- ================================================================= -->
+    <RuleGroup name="ImageLoad" groupRelation="or">
+      <ImageLoad onmatch="include">
+        <ImageLoaded condition="begin with">C:\Users\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\Temp\</ImageLoaded>
+        <ImageLoaded condition="begin with">C:\Windows\Temp\</ImageLoaded>
+      </ImageLoad>
+    </RuleGroup>
+
+    <!-- ================================================================= -->
+    <!-- Event ID 8: CreateRemoteThread                                    -->
+    <!-- Detect process injection, hollowing, and thread hijacks           -->
+    <!-- ================================================================= -->
+    <RuleGroup name="CreateRemoteThread" groupRelation="or">
+      <CreateRemoteThread onmatch="exclude">
+        <!-- Known benign inter-process thread creations -->
+        <SourceImage condition="is">C:\Windows\System32\csrss.exe</SourceImage>
+      </CreateRemoteThread>
+    </RuleGroup>
+
+    <!-- ================================================================= -->
+    <!-- Event ID 10: ProcessAccess (LSASS credential dumping)             -->
+    <!-- Detect Minidump, Mimikatz, and LSASS memory access attempts       -->
+    <!-- ================================================================= -->
+    <RuleGroup name="ProcessAccess" groupRelation="or">
+      <ProcessAccess onmatch="include">
+        <TargetImage condition="end with">lsass.exe</TargetImage>
+      </ProcessAccess>
+    </RuleGroup>
+
+    <!-- ================================================================= -->
+    <!-- Event ID 11: FileCreate                                           -->
+    <!-- Monitor executable drops in temp dirs and canary honeypot paths   -->
+    <!-- ================================================================= -->
+    <RuleGroup name="FileCreate" groupRelation="or">
+      <FileCreate onmatch="include">
+        <!-- Executable creation in user writeable directories -->
+        <TargetFilename condition="end with">.exe</TargetFilename>
+        <TargetFilename condition="end with">.dll</TargetFilename>
+        <TargetFilename condition="end with">.bat</TargetFilename>
+        <TargetFilename condition="end with">.ps1</TargetFilename>
+        <TargetFilename condition="end with">.vbs</TargetFilename>
+        <!-- Ransomware canaries and honeyfiles -->
+        <TargetFilename condition="contains">\canaries\</TargetFilename>
+        <TargetFilename condition="contains">\honeyfile\</TargetFilename>
+      </FileCreate>
+    </RuleGroup>
+
+    <!-- ================================================================= -->
+    <!-- Event ID 12, 13, 14: Registry Modifications                       -->
+    <!-- Monitor autostart, run keys, service creations, and Winlogon      -->
+    <!-- ================================================================= -->
+    <RuleGroup name="RegistryEvent" groupRelation="or">
+      <RegistryEvent onmatch="include">
+        <TargetObject condition="contains">\CurrentVersion\Run</TargetObject>
+        <TargetObject condition="contains">\CurrentVersion\RunOnce</TargetObject>
+        <TargetObject condition="contains">\Services\</TargetObject>
+        <TargetObject condition="contains">\Winlogon\Userinit</TargetObject>
+        <TargetObject condition="contains">\Winlogon\Shell</TargetObject>
+        <TargetObject condition="contains">\Software\Microsoft\Windows\CurrentVersion\Policies\System</TargetObject>
+      </RegistryEvent>
+    </RuleGroup>
+
+    <!-- ================================================================= -->
+    <!-- Event ID 22: DNS Query                                            -->
+    <!-- Monitor DNS queries initiated by non-browser utilities           -->
+    <!-- ================================================================= -->
+    <RuleGroup name="DnsQuery" groupRelation="or">
+      <DnsQuery onmatch="include">
+        <Image condition="image">powershell.exe</Image>
+        <Image condition="image">cmd.exe</Image>
+        <Image condition="image">certutil.exe</Image>
+        <Image condition="image">bitsadmin.exe</Image>
+        <Image condition="image">mshta.exe</Image>
+      </DnsQuery>
+    </RuleGroup>
+
+    <!-- ================================================================= -->
+    <!-- Event ID 25: Process Tampering                                    -->
+    <!-- Detect process hollowing, Herpaderping, and memory overwrite      -->
+    <!-- ================================================================= -->
+    <RuleGroup name="ProcessTampering" groupRelation="or">
+      <ProcessTampering onmatch="include">
+        <Type condition="is">Process hollowing detected</Type>
+        <Type condition="is">Process image overwritten</Type>
+      </ProcessTampering>
+    </RuleGroup>
+  </EventFiltering>
+</Sysmon>

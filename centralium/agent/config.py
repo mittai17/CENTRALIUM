@@ -287,6 +287,7 @@ class CentraliumConfig(_Section):
     llm: LLMSettings = Field(default_factory=LLMSettings)
     paths: PathsSettings = Field(default_factory=PathsSettings)
     policy: PolicySettings = Field(default_factory=PolicySettings)
+    ml_use_onnx: bool = False  # use ONNX Runtime inference if available
 
     @field_validator("log_level")
     @classmethod

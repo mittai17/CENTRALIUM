@@ -561,11 +561,11 @@ class MemoryGraph:
             self._reg_event(ev, ts, proc, rec, tags, host)
         elif et in (EventType.PERSISTENCE, EventType.SERVICE_CHANGE, EventType.SCHEDULED_TASK):
             self._persist_event(ev, host, ts, proc, rec, tags)
-        elif et == EventType.PRIVILEGE_CHANGE:
+        elif et in (EventType.PRIVILEGE_CHANGE, EventType.PRIVILEGE_ELEVATION):
             tags.append(Tag(AttackStage.PRIVILEGE_ESCALATION.value, "T1548", "heuristic"))
             rec.label = f"{proc.label if proc else 'process'} privilege change"
             rec.structural = True
-        elif et == EventType.AUTH:
+        elif et in (EventType.AUTH, EventType.AUTH_LOGIN, EventType.AUTH_LOGOUT, EventType.AUTH_FAIL):
             self._auth_event(ev, host, ts, proc, host_node, rec, tags)
         elif et == EventType.PROCESS_INJECT:
             tags.append(Tag(AttackStage.DEFENSE_EVASION.value, "T1055", "heuristic"))

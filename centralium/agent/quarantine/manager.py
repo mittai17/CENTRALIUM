@@ -34,9 +34,12 @@ import uuid
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from centralium.agent.interfaces import QuarantineRecord
+
+if TYPE_CHECKING:
+    from centralium.agent.quarantine.crypto import QuarantineCrypto
 
 log = logging.getLogger("centralium.quarantine")
 
@@ -71,6 +74,7 @@ class FileQuarantineManager:
         max_file_bytes: int = 512 * 1024 * 1024,
         allow_purge: bool = False,
         destroy_evidence_on_restore: bool = False,
+        crypto: QuarantineCrypto | None = None,
     ) -> None:
         self.root = Path(root)
         self._audit = audit
@@ -80,6 +84,7 @@ class FileQuarantineManager:
         self.max_file_bytes = max_file_bytes
         self.allow_purge = allow_purge
         self.destroy_on_restore = destroy_evidence_on_restore
+        self.crypto = crypto
         self._lock = threading.RLock()
         self._ensure_root()
 
@@ -153,9 +158,15 @@ class FileQuarantineManager:
                         os.fdopen(out_fd, "wb", closefd=True) as out,
                         os.fdopen(os.dup(fd), "rb", closefd=True) as src,
                     ):
-                        while chunk := src.read(_CHUNK):
-                            digest.update(chunk)
-                            out.write(chunk)
+                        if self.crypto is not None:
+                            raw_content = src.read()
+                            digest.update(raw_content)
+                            enc_blob = self.crypto.encrypt_bytes(raw_content)
+                            out.write(enc_blob)
+                        else:
+                            while chunk := src.read(_CHUNK):
+                                digest.update(chunk)
+                                out.write(chunk)
                         out.flush()
                         os.fsync(out.fileno())
                 except BaseException:
@@ -164,6 +175,16 @@ class FileQuarantineManager:
             finally:
                 os.close(fd)
             os.chmod(blob, 0o400)  # no exec bits, read-only, owner only
+            meta_dict: dict[str, Any] = {
+                "mode": oct(stat.S_IMODE(st.st_mode)),
+                "uid": st.st_uid,
+                "gid": st.st_gid,
+                "mtime_ns": st.st_mtime_ns,
+                "size": st.st_size,
+                "encrypted": bool(self.crypto is not None),
+            }
+            if self.crypto is not None:
+                meta_dict["crypto_key_id"] = self.crypto.active_key_id
             rec = QuarantineRecord(
                 quarantine_id=qid,
                 original_path=real,
@@ -172,13 +193,7 @@ class FileQuarantineManager:
                 timestamp=datetime.now(UTC).isoformat(),
                 reasons=[str(r)[:500] for r in reasons][:50],
                 sources=[str(s)[:100] for s in sources][:50],
-                metadata={
-                    "mode": oct(stat.S_IMODE(st.st_mode)),
-                    "uid": st.st_uid,
-                    "gid": st.st_gid,
-                    "mtime_ns": st.st_mtime_ns,
-                    "size": st.st_size,
-                },
+                metadata=meta_dict,
             )
             try:
                 self._write_meta(meta, rec)
@@ -240,14 +255,19 @@ class FileQuarantineManager:
         """True if the stored blob still matches its recorded SHA-256."""
         rec = self.get(quarantine_id)
         blob, _ = self._paths(quarantine_id)
-        h = hashlib.sha256()
         try:
+            if rec.metadata.get("encrypted"):
+                if self.crypto is None:
+                    return False
+                plain = self.crypto.decrypt_bytes(blob.read_bytes())
+                return hashlib.sha256(plain).hexdigest() == rec.sha256
+            h = hashlib.sha256()
             with blob.open("rb") as fh:
                 while chunk := fh.read(_CHUNK):
                     h.update(chunk)
-        except OSError:
+            return h.hexdigest() == rec.sha256
+        except (OSError, Exception):
             return False
-        return h.hexdigest() == rec.sha256
 
     # ------------------------------------------------------------------ restore / purge
     def _authorize(self, actor: str, reason: str, rec: QuarantineRecord) -> None:
@@ -291,11 +311,20 @@ class FileQuarantineManager:
                 raise QuarantineError(f"restore target is under protected location {prot}")
             fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _NOFOLLOW, 0o600)
             try:
-                with os.fdopen(fd, "wb", closefd=True) as out, blob.open("rb") as src:
-                    while chunk := src.read(_CHUNK):
-                        out.write(chunk)
-                    out.flush()
-                    os.fsync(out.fileno())
+                if rec.metadata.get("encrypted"):
+                    if self.crypto is None:
+                        raise QuarantineError("crypto manager required to restore encrypted quarantine blob")
+                    plain = self.crypto.decrypt_bytes(blob.read_bytes())
+                    with os.fdopen(fd, "wb", closefd=True) as out:
+                        out.write(plain)
+                        out.flush()
+                        os.fsync(out.fileno())
+                else:
+                    with os.fdopen(fd, "wb", closefd=True) as out, blob.open("rb") as src:
+                        while chunk := src.read(_CHUNK):
+                            out.write(chunk)
+                        out.flush()
+                        os.fsync(out.fileno())
                 mode = int(str(rec.metadata.get("mode", "0o600")), 8)
                 os.chmod(dest, mode & 0o7777)
                 mt = rec.metadata.get("mtime_ns")

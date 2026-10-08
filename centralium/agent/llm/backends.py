@@ -50,6 +50,7 @@ class LLMBackend(Protocol):
         temperature: float,
         timeout: float,
         schema: dict[str, Any] | None = None,
+        grammar: str | None = None,
     ) -> str: ...
 
     def close(self) -> None: ...
@@ -69,6 +70,7 @@ class LlamaServerBackend:
         self.base_url = base_url.rstrip("/")
         self._client = client or httpx.Client(trust_env=False)
         self._schema_ok = True
+        self._grammar_ok = True
 
     def check(self) -> tuple[bool, str]:
         try:
@@ -87,6 +89,7 @@ class LlamaServerBackend:
         temperature: float,
         timeout: float,
         schema: dict[str, Any] | None = None,
+        grammar: str | None = None,
     ) -> str:
         body: dict[str, Any] = {
             "messages": messages,
@@ -99,12 +102,18 @@ class LlamaServerBackend:
                 "type": "json_schema",
                 "json_schema": {"name": "verdict", "schema": schema},
             }
+        if grammar is not None and self._grammar_ok:
+            body["grammar"] = grammar
         try:
             r = self._client.post(f"{self.base_url}/v1/chat/completions", json=body, timeout=timeout)
-            if r.status_code == 400 and "response_format" in body:
-                log.warning("llama-server rejected json_schema response_format; retrying unconstrained")
+            if r.status_code == 400 and ("response_format" in body or "grammar" in body):
+                log.warning(
+                    "llama-server rejected grammar/response_format constraint; retrying unconstrained"
+                )
                 self._schema_ok = False
-                body.pop("response_format")
+                self._grammar_ok = False
+                body.pop("response_format", None)
+                body.pop("grammar", None)
                 r = self._client.post(f"{self.base_url}/v1/chat/completions", json=body, timeout=timeout)
             r.raise_for_status()
             data = r.json()
@@ -182,6 +191,7 @@ class LlamaCppPythonBackend:
         temperature: float,
         timeout: float,
         schema: dict[str, Any] | None = None,
+        grammar: str | None = None,
     ) -> str:
         if self._pool is None:
             self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="llm")
@@ -191,6 +201,8 @@ class LlamaCppPythonBackend:
             kw: dict[str, Any] = {}
             if schema is not None:
                 kw["response_format"] = {"type": "json_object", "schema": schema}
+            if grammar is not None:
+                kw["grammar"] = grammar
             out = llm.create_chat_completion(
                 messages=messages, max_tokens=max_tokens, temperature=temperature, **kw
             )

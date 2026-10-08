@@ -110,7 +110,11 @@ class DefaultBehaviorEngine:
             any(x.score >= 20 for x in new)
             or any(x.source != FindingSource.ALLOWLIST and x.score > 0 for x in epp)
             or f["beh_injection"] > 0
-            or (f["beh_priv_change"] > 0 and f["privilege_context"] > 0 and et == EventType.PRIVILEGE_CHANGE)
+            or (
+                f["beh_priv_change"] > 0
+                and f["privilege_context"] > 0
+                and et in {EventType.PRIVILEGE_CHANGE, EventType.PRIVILEGE_ELEVATION}
+            )
             or f["beh_persistence_mod"] > 0
             or f["beh_download_execute"] > 0
             or f["rw_composite_score"] >= c.ml_ransomware_threshold

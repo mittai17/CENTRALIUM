@@ -29,6 +29,7 @@ import typer
 from centralium import __version__
 from centralium.agent.config import CentraliumConfig, ModeChangeError, ResourceProfileName, load_config
 from centralium.agent.models import EventType, NormalizedEvent, OperatingMode
+from centralium.agent.privacy.redaction import install_log_redaction
 from centralium.agent.storage import Database
 
 app = typer.Typer(help="Centralium EDR/EPP", no_args_is_help=True, add_completion=False)
@@ -37,11 +38,13 @@ mode_app = typer.Typer(help="Operating mode (explicit, audited, persisted)", no_
 rag_app = typer.Typer(help="Local RAG knowledge base", no_args_is_help=True)
 quarantine_app = typer.Typer(help="Quarantine management", no_args_is_help=True)
 ml_app = typer.Typer(help="Machine learning pipeline and model management", no_args_is_help=True)
+eval_app = typer.Typer(help="Evaluation harnesses (RAG, LLM, prompt-injection)", no_args_is_help=True)
 app.add_typer(audit_app, name="audit")
 app.add_typer(mode_app, name="mode")
 app.add_typer(rag_app, name="rag")
 app.add_typer(quarantine_app, name="quarantine")
 app.add_typer(ml_app, name="ml")
+app.add_typer(eval_app, name="eval")
 
 ConfigOpt = Annotated[Path | None, typer.Option("--config", "-c", help="TOML config file")]
 ProfileOpt = Annotated[
@@ -58,6 +61,7 @@ def _setup_logging(cfg: CentraliumConfig, quiet_alerts: bool = False) -> None:
         stream=sys.stderr,
         force=True,
     )
+    install_log_redaction()
     if quiet_alerts:
         logging.getLogger("centralium.response").setLevel(logging.ERROR)
 
@@ -959,6 +963,128 @@ def benchmark(
     write_reports(result, out_md, out_json)
     typer.echo(f"wrote {out_md} and {out_json}")
     typer.echo(json.dumps(result.get("headline", {}), indent=2))
+
+
+# --------------------------------------------------------------------------- purple-team simulate
+@app.command("simulate")
+def simulate(
+    techniques: Annotated[
+        str,
+        typer.Option("--techniques", "-t", help="Comma-separated ATT&CK IDs (e.g. T1059.001,T1486) or 'all'"),
+    ] = "all",
+    out: Annotated[Path | None, typer.Option("--out", "-o", help="Report output path (.md or .json)")] = None,
+    config: ConfigOpt = None,
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Verbose output")] = False,
+) -> None:
+    """Safe purple-team attack emulation harness for MITRE ATT&CK coverage verification."""
+    from centralium.agent.simulate.purple_team import PurpleTeamSimulator
+
+    cfg = make_config(config, test=True)
+    _setup_logging(cfg, quiet_alerts=not verbose)
+
+    tech_list = [t.strip() for t in techniques.split(",") if t.strip()]
+    simulator = PurpleTeamSimulator(config=cfg)
+    report = simulator.run(tech_list)
+
+    typer.echo(report.to_markdown())
+
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        if out.suffix.lower() == ".json":
+            out.write_text(report.to_json(), encoding="utf-8")
+        else:
+            out.write_text(report.to_markdown(), encoding="utf-8")
+        typer.echo(f"\nWrote purple-team report to {out}")
+
+
+# --------------------------------------------------------------------------- eval harnesses
+@eval_app.command("rag")
+def eval_rag(
+    rag_dir: Annotated[Path, typer.Option(help="path to rag directory")] = Path("rag"),
+    index: Annotated[Path | None, typer.Option(help="path to index.db")] = None,
+    out: Annotated[Path | None, typer.Option(help="report output path (.md or .json)")] = None,
+) -> None:
+    """Evaluate RAG retrieval across golden queries.
+    Reports Recall@k and MRR comparing BM25 vs Vector vs Hybrid.
+    """
+    from centralium.agent.eval.rag_eval import run_rag_eval
+
+    rep = run_rag_eval(rag_dir=rag_dir, db_path=index, out_path=out)
+    typer.echo(rep.to_markdown())
+    if out:
+        typer.echo(f"\nWrote report to {out}")
+
+
+@eval_app.command("llm")
+def eval_llm(
+    config: ConfigOpt = None,
+    out: Annotated[Path | None, typer.Option(help="report output path (.md or .json)")] = None,
+) -> None:
+    """Evaluate LLM on golden incidents measuring verdict agreement, valid JSON rate, and latency."""
+    from dataclasses import asdict
+
+    from centralium.agent.eval.llm_eval import evaluate_llm
+    from centralium.agent.interfaces import LLMClient
+    from centralium.agent.llm.client import build_llm_client
+
+    cfg = load_config(config)
+    client: LLMClient
+    if cfg.test_mode or cfg.demo_mode or not cfg.llm.enabled:
+        from centralium.agent.llm.mock import MockLLM
+
+        client = MockLLM()
+    else:
+        client = build_llm_client(cfg.llm)
+        if not client.available():
+            from centralium.agent.llm.mock import MockLLM
+
+            client = MockLLM()
+    rep = evaluate_llm(client)
+    typer.echo(rep.to_markdown())
+    if out:
+        p = Path(out)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        if p.suffix.lower() == ".json":
+            p.write_text(json.dumps(asdict(rep), indent=2), encoding="utf-8")
+        else:
+            p.write_text(rep.to_markdown(), encoding="utf-8")
+        typer.echo(f"\nWrote report to {out}")
+
+
+@eval_app.command("injection")
+def eval_injection(
+    config: ConfigOpt = None,
+    out: Annotated[Path | None, typer.Option(help="report output path (.md or .json)")] = None,
+) -> None:
+    """Evaluate prompt injection resilience across adversarial command lines, filenames, domains, and text."""
+    from dataclasses import asdict
+
+    from centralium.agent.eval.injection_eval import evaluate_injection
+    from centralium.agent.interfaces import LLMClient
+    from centralium.agent.llm.client import build_llm_client
+
+    cfg = load_config(config)
+    client: LLMClient
+    if cfg.test_mode or cfg.demo_mode or not cfg.llm.enabled:
+        from centralium.agent.llm.mock import MockLLM
+
+        client = MockLLM()
+    else:
+        client = build_llm_client(cfg.llm)
+        if not client.available():
+            from centralium.agent.llm.mock import MockLLM
+
+            client = MockLLM()
+    rep = evaluate_injection(client)
+    typer.echo(rep.to_markdown())
+    if out:
+        p = Path(out)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        if p.suffix.lower() == ".json":
+            p.write_text(json.dumps(asdict(rep), indent=2), encoding="utf-8")
+        else:
+            p.write_text(rep.to_markdown(), encoding="utf-8")
+        typer.echo(f"\nWrote report to {out}")
 
 
 if __name__ == "__main__":

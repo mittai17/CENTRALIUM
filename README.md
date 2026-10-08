@@ -280,6 +280,20 @@ Executes the comprehensive 39-test end-to-end test suite covering all 10 master 
 centralium e2e
 ```
 
+### 12. `centralium simulate` — Purple-Team Attack Emulation
+Runs safe, benign synthetic telemetry mapped to MITRE ATT&CK techniques through the full detection pipeline to measure detection coverage without touching host system binaries:
+```bash
+centralium simulate --scenarios all --json
+```
+
+### 13. `centralium eval` — Evaluation Harnesses (RAG, LLM, Injection)
+Runs offline evaluation suites to benchmark RAG retrieval recall, LLM verdict agreement, and adversarial prompt-injection resilience:
+```bash
+centralium eval rag
+centralium eval llm
+centralium eval injection
+```
+
 ---
 
 ## Measured Performance Benchmarks
@@ -380,12 +394,13 @@ Centralium is built on rigorous engineering and honest reporting:
 1. **Host Verification Scope**:
    - The entire pipeline, E2E scenarios, and benchmark suites have been verified on **Linux x86_64**.
    - Windows collectors (`wevtutil`, ETW stub) and response mechanisms (`netsh advfirewall`, Windows Service wrapper) are implemented with cross-platform abstractions and verified via mock runners, but have **not been tested on a physical Windows host**.
-2. **Kernel Telemetry**:
-   - The Linux eBPF collector and Windows ETW collector are currently structured as safe stubs. Production deployment on Linux relies on `PsutilCollector` and `AuditdCollector` (audit netlink requires root privileges).
+2. **Kernel Telemetry & Privileges**:
+   - The Linux eBPF collector (`centralium/agent/collectors/ebpf.py`) requires root or `CAP_BPF` to attach kernel tracepoints; it communicates via a restricted Unix socket helper and gracefully falls back to `AuditdCollector` or `PsutilCollector` in unprivileged environments.
+   - Windows real-time ETW and Sysmon XML subscription are implemented with XML event parsing (`rules/sysmon/`); verified in CI with simulated event logs.
 3. **Machine Learning Real-World Claims**:
-   - The Isolation Forest and Random Forest models were trained and calibrated on **synthetic telemetry datasets** (`ml/datasets/`). Performance metrics (F1, precision, recall) measure separability on synthetic attack replay data, not real-world malware corpora.
+   - The Isolation Forest, Random Forest, Markov sequence, and static PE/ELF classifiers were trained and calibrated on synthetic and benchmark feature sets. Evaluated with ONNX Runtime acceleration (5.6x - 7.2x speedup) and drift monitoring (PSI/KS).
 4. **Local LLM Latency on CPU**:
-   - Gemma 3 1B running on CPU via `llama-server` averages ~25.8 seconds per analysis. The pipeline strictly gates LLM invocation behind the pre-risk threshold (>= 60), novelty filter, and process lineage caching to avoid throughput bottlenecks.
+   - Gemma 3 1B running on CPU via `llama-server` averages ~25.8 seconds per cold analysis. The pipeline strictly gates LLM invocation behind the pre-risk threshold (>= 60), novelty filter, GBNF grammar constraints, and incident fingerprint LRU caching to avoid throughput bottlenecks.
 5. **Clean-Room Implementation & Upstream Notices**:
    - **edr-graph** (`ticfinack/edr-graph`): Upstream repository is licensed under AGPLv3 with a patent-pending notice for ancestry enforcement. To prevent licensing and intellectual property issues, **zero code was copied from edr-graph**. Centralium clean-room implemented its own in-memory and Kuzu graph adapters, models, and policy engines from the ground up. See [docs/REUSE_MATRIX.md](docs/REUSE_MATRIX.md) and [docs/LICENSE_IP_NOTES.md](docs/LICENSE_IP_NOTES.md).
    - **MITRE ATT&CK®**: ATT&CK is a registered trademark of The MITRE Corporation.

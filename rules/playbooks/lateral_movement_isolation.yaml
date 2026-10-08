@@ -1,0 +1,32 @@
+id: "pb-lateral-movement-isolation"
+name: "Lateral Movement Interception and Isolation"
+description: "Blocks internal lateral reconnaissance or pivot targets and isolates host if high confidence lateral spread detected."
+categories:
+  - "lateral_movement"
+min_severity: "HIGH"
+author: "Centralium SecOps"
+version: "1.0"
+tags:
+  - "lateral_movement"
+  - "t1021"
+steps:
+  - id: "step-1-block-target"
+    action: "BLOCK_CONNECTION"
+    target_field: "destination_ip"
+    description: "Sever connection to internal target"
+    require_approval: false
+    continue_on_failure: false
+
+  - id: "step-2-suspend-tool"
+    action: "SUSPEND_PROCESS"
+    target_field: "pid"
+    description: "Suspend pivoting tool/process"
+    require_approval: false
+    continue_on_failure: false
+
+  - id: "step-3-isolate"
+    action: "ISOLATE_ENDPOINT"
+    target_field: "endpoint"
+    description: "Isolate endpoint to prevent compromise of adjacent hosts"
+    require_approval: true
+    continue_on_failure: false

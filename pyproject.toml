@@ -51,6 +51,7 @@ markers = [
   "performance: benchmarks (measured, not asserted against hard numbers)",
   "security: security regression tests",
   "ml: ML pipeline tests",
+  "windows: Windows-specific tests (Sysmon, wevtutil, netsh, service wrapper)",
 ]
 filterwarnings = ["ignore:Using .httpx. with"]
 
@@ -74,5 +75,5 @@ files = ["centralium"]
 exclude = ["^.venv/"]
 
 [[tool.mypy.overrides]]
-module = ["yara", "kuzu", "sqlite_vec", "pefile", "elftools.*", "onnxruntime", "joblib", "sklearn.*", "psutil"]
+module = ["yara", "kuzu", "sqlite_vec", "pefile", "elftools.*", "onnxruntime", "joblib", "sklearn.*", "psutil", "bcc"]
 ignore_missing_imports = true

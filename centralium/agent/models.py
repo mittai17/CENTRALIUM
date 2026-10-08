@@ -43,7 +43,11 @@ class EventType(StrEnum):
     REGISTRY_DELETE = "registry_delete"
     PERSISTENCE = "persistence"
     AUTH = "auth"
+    AUTH_LOGIN = "auth_login"
+    AUTH_LOGOUT = "auth_logout"
+    AUTH_FAIL = "auth_fail"
     PRIVILEGE_CHANGE = "privilege_change"
+    PRIVILEGE_ELEVATION = "privilege_elevation"
     MODULE_LOAD = "module_load"
     SERVICE_CHANGE = "service_change"
     SCHEDULED_TASK = "scheduled_task"
@@ -95,6 +99,7 @@ class ActionRecommendation(StrEnum):
     TERMINATE_PROCESS = "TERMINATE_PROCESS"
     QUARANTINE_FILE = "QUARANTINE_FILE"
     ISOLATE_ENDPOINT = "ISOLATE_ENDPOINT"
+    SNAPSHOT_PROTECT = "SNAPSHOT_PROTECT"
 
 
 class ResponseAction(StrEnum):
@@ -106,6 +111,7 @@ class ResponseAction(StrEnum):
     TERMINATE_PROCESS = "TERMINATE_PROCESS"
     QUARANTINE_FILE = "QUARANTINE_FILE"
     ISOLATE_ENDPOINT = "ISOLATE_ENDPOINT"
+    SNAPSHOT_PROTECT = "SNAPSHOT_PROTECT"
 
 
 DESTRUCTIVE_ACTIONS: frozenset[ResponseAction] = frozenset(
@@ -166,6 +172,9 @@ class FindingSource(StrEnum):
     AI = "ai"
     ALLOWLIST = "allowlist"
     SELF_PROTECTION = "self_protection"
+    SIGMA = "sigma"
+    APP_CONTROL = "app_control"
+    POSTURE = "posture"
 
 
 class ScoreFamily(StrEnum):
@@ -495,3 +504,8 @@ class PipelineOutcome(BaseModel):
     allowlisted: bool = False  # allowlist hit: skipped ML/RAG/LLM, no response
     stages_reached: list[str] = Field(default_factory=list)
     stage_errors: dict[str, str] = Field(default_factory=dict)
+    explainability: Any | None = None
+
+
+# Alias for compatibility with phase specifications
+PipelineOutput = PipelineOutcome

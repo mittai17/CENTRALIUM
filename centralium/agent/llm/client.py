@@ -30,7 +30,10 @@ from centralium.agent.llm.backends import (
     LLMTimeoutError,
     Messages,
 )
+from centralium.agent.llm.cache import IncidentFingerprintCache
+from centralium.agent.llm.grammar import get_ai_verdict_gbnf
 from centralium.agent.llm.prompts import (
+    ROLE_TOKEN_BUDGETS,
     RenderedPrompt,
     build_prompt,
     json_schema,
@@ -60,6 +63,7 @@ class LocalLLMClient:
         *,
         unavailable_reason: str = "",
         clock: Callable[[], float] | None = None,
+        cache_capacity: int = 512,
     ) -> None:
         self.settings = settings
         self.backend = backend
@@ -72,6 +76,7 @@ class LocalLLMClient:
         self._avail: tuple[float, bool, str] = (-1e9, False, "")
         self._last_used = 0.0
         self._timer: threading.Timer | None = None
+        self.cache = IncidentFingerprintCache(capacity=cache_capacity)
         self.calls = 0
         self.failures = 0
         self.last_error: str | None = None
@@ -98,6 +103,7 @@ class LocalLLMClient:
             "calls": self.calls,
             "failures": self.failures,
             "last_error": self.last_error,
+            "cache": self.cache.stats(),
         }
 
     def _probe(self) -> tuple[bool, str]:
@@ -137,6 +143,11 @@ class LocalLLMClient:
         )
 
     def analyze(self, request: LLMRequest) -> AIAnalysis:
+        # Check LRU incident fingerprint cache first
+        cached = self.cache.get_by_request(request)
+        if cached is not None:
+            return cached
+
         started = time.perf_counter()
         sources = [d.doc_id for d in request.rag_docs]
         try:
@@ -154,11 +165,14 @@ class LocalLLMClient:
         if not self._sem.acquire(timeout=s.timeout_sec):
             self.failures += 1
             return self._unavailable(req, "LLM busy (concurrency limit)", started, sources)
+        role = normalize_role(req.role)
+        role_budget = ROLE_TOKEN_BUDGETS.get(role, s.max_tokens)
+        gen_tokens = min(s.max_tokens, role_budget)
         try:
             self.calls += 1
-            prompt = build_prompt(req, max_prompt_tokens=max(256, s.max_ctx - s.max_tokens - 64))
+            prompt = build_prompt(req, max_prompt_tokens=max(256, s.max_ctx - gen_tokens - 64))
             sources = prompt.sources or sources
-            verdict, err = self._generate_validated(prompt)
+            verdict, err = self._generate_validated(prompt, max_tokens=gen_tokens)
         finally:
             self._sem.release()
             self._touch()
@@ -167,34 +181,41 @@ class LocalLLMClient:
             return self._unavailable(req, err, started, sources)
         self._fails = 0
         verdict = self._apply_injection_guard(verdict, prompt)
-        return AIAnalysis(
+        analysis = AIAnalysis(
             event_id=req.event.event_id,
             available=True,
             verdict=verdict,
-            role=normalize_role(req.role),
+            role=role,
             model_name=self.model_name,
             latency_ms=(time.perf_counter() - started) * 1000,
             rag_sources=sources,
             error=None,
         )
+        self.cache.put_by_request(req, analysis)
+        return analysis
 
-    def _generate_validated(self, prompt: RenderedPrompt) -> tuple[AIVerdict | None, str]:
+    def _generate_validated(
+        self, prompt: RenderedPrompt, *, max_tokens: int | None = None
+    ) -> tuple[AIVerdict | None, str]:
         assert self.backend is not None
         s = self.settings
         msgs: Messages = [
             {"role": "system", "content": prompt.system},
             {"role": "user", "content": prompt.user},
         ]
+        tokens_to_gen = max_tokens if max_tokens is not None else s.max_tokens
         err = "no attempt"
         schema = json_schema()
+        grammar = get_ai_verdict_gbnf()
         for attempt in range(1 + s.retries_on_invalid_json):
             try:
                 text = self.backend.generate(
                     msgs,
-                    max_tokens=s.max_tokens,
+                    max_tokens=tokens_to_gen,
                     temperature=s.temperature,
                     timeout=s.timeout_sec,
                     schema=schema,
+                    grammar=grammar,
                 )
             except LLMTimeoutError as exc:
                 return None, f"LLM timeout: {exc}"  # do not retry a timeout

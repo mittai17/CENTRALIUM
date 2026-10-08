@@ -1,0 +1,34 @@
+id: "pb-c2-beacon-containment"
+name: "Command and Control Beacon Containment"
+description: "Blocks egress connection to external C2 server, suspends beaconing process, and terminates unauthorized channel."
+categories:
+  - "c2"
+  - "beacon"
+min_severity: "MEDIUM"
+author: "Centralium SecOps"
+version: "1.0"
+tags:
+  - "c2"
+  - "t1071"
+  - "network"
+steps:
+  - id: "step-1-block-ip"
+    action: "BLOCK_CONNECTION"
+    target_field: "destination_ip"
+    description: "Block outbound communication to C2 IP"
+    require_approval: false
+    continue_on_failure: false
+
+  - id: "step-2-suspend"
+    action: "SUSPEND_PROCESS"
+    target_field: "pid"
+    description: "Suspend beaconing process to preserve memory for forensics"
+    require_approval: false
+    continue_on_failure: false
+
+  - id: "step-3-terminate"
+    action: "TERMINATE_PROCESS"
+    target_field: "pid"
+    description: "Terminate persistent C2 process"
+    require_approval: false
+    continue_on_failure: true

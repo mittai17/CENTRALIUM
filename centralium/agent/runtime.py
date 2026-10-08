@@ -355,7 +355,7 @@ def build_runtime(
     normalizer = EventNormalizer(cfg.host_id)
 
     install = sandbox if auto_install_models is None else auto_install_models
-    ml = create_ml_engine(models_dir, auto_install=install)
+    ml = create_ml_engine(models_dir, auto_install=install, use_onnx=cfg.ml_use_onnx)
     if not ml.available():
         notes.append(f"ML models unavailable in {models_dir}: ML stage disabled (no scores fabricated)")
 

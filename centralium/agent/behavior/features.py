@@ -144,6 +144,7 @@ def extract_features(
         EventType.PROCESS_INJECT,
         EventType.MODULE_LOAD,
         EventType.PRIVILEGE_CHANGE,
+        EventType.PRIVILEGE_ELEVATION,
     }:
         f["evt_process"] = 1.0
     elif et in {EventType.NETWORK_CONNECT, EventType.NETWORK_LISTEN, EventType.DNS_QUERY}:
@@ -179,7 +180,7 @@ def extract_features(
             (event.user or "").lower() in _PRIV_USERS
             or str(meta.get("integrity_level", "")).lower() in {"high", "system"}
             or str(meta.get("euid", "")) == "0"
-            or et == EventType.PRIVILEGE_CHANGE
+            or et in {EventType.PRIVILEGE_CHANGE, EventType.PRIVILEGE_ELEVATION}
         )
 
         # ---------------------------------------------------------------- NETWORK
@@ -223,7 +224,7 @@ def extract_features(
         f["beh_script_interpreter"] = float(pname in SCRIPT_INTERPRETERS)
         pers = persistence if persistence is not None else _DEFAULT_PERSIST.evaluate(event)
         f["beh_persistence_mod"] = max((p.score for p in pers), default=0.0) / 100.0
-        f["beh_priv_change"] = float(et == EventType.PRIVILEGE_CHANGE)
+        f["beh_priv_change"] = float(et in {EventType.PRIVILEGE_CHANGE, EventType.PRIVILEGE_ELEVATION})
         f["beh_injection"] = float(et == EventType.PROCESS_INJECT)
         if et == EventType.PROCESS_START:
             static = ancestry_risk(parent, event.process_name, event.executable_path)

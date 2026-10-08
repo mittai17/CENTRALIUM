@@ -103,6 +103,26 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
                 node_count INTEGER, edge_count INTEGER, snapshot TEXT NOT NULL)""",
         ],
     ),
+    (
+        3,
+        "analyst feedback and suggestions",
+        [
+            """CREATE TABLE analyst_feedback (
+                feedback_id TEXT PRIMARY KEY, finding_id TEXT NOT NULL, event_id TEXT NOT NULL,
+                analyst TEXT NOT NULL, feedback_type TEXT NOT NULL, comment TEXT,
+                created_at TEXT NOT NULL, rule_id TEXT, severity TEXT,
+                features_snapshot TEXT, provenance TEXT, status TEXT NOT NULL DEFAULT 'recorded')""",
+            "CREATE INDEX idx_feedback_finding ON analyst_feedback(finding_id)",
+            "CREATE INDEX idx_feedback_event ON analyst_feedback(event_id)",
+            """CREATE TABLE feedback_suggestions (
+                suggestion_id TEXT PRIMARY KEY, feedback_id TEXT NOT NULL, kind TEXT NOT NULL,
+                target_type TEXT NOT NULL, target_value TEXT NOT NULL, reason TEXT,
+                status TEXT NOT NULL DEFAULT 'PENDING_REVIEW', created_at TEXT NOT NULL,
+                applied_at TEXT, applied_by TEXT,
+                FOREIGN KEY (feedback_id) REFERENCES analyst_feedback(feedback_id))""",
+            "CREATE INDEX idx_suggestions_status ON feedback_suggestions(status)",
+        ],
+    ),
 ]
 
 LATEST_VERSION: int = MIGRATIONS[-1][0]
@@ -129,5 +149,7 @@ TABLES: frozenset[str] = frozenset(
         "sync_queue",
         "rag_metadata",
         "graph_snapshots",
+        "analyst_feedback",
+        "feedback_suggestions",
     }
 )

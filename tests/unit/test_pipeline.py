@@ -168,8 +168,10 @@ class FakeLLM:
 
 
 class RecordingPolicy:
-    def __init__(self, action=ResponseAction.TERMINATE_PROCESS, requires_approval=False):
+    def __init__(self, action=ResponseAction.TERMINATE_PROCESS, requires_approval=False, refusal_reason=None):
         self.action, self.requires_approval, self.ctxs = action, requires_approval, []
+        self.refusal_reason = refusal_reason
+        self.rechecked = 0
 
     def decide(self, ctx: PolicyContext):
         self.ctxs.append(ctx)
@@ -180,6 +182,10 @@ class RecordingPolicy:
             requires_approval=self.requires_approval,
             target={"pid": 4242},
         )
+
+    def recheck(self, action, target, event):
+        self.rechecked += 1
+        return self.refusal_reason
 
 
 class RecordingExecutor:
@@ -578,24 +584,70 @@ def test_pipeline_process_approved_actions_flows_through_policy_gate(db):
     ex = RecordingExecutor()
     pol = RecordingPolicy(action=ResponseAction.TERMINATE_PROCESS)
     p = Pipeline(high_cfg(), db=db, policy=pol, executor=ex)
-    p.repo.add_event(ev)
+    try:
+        p.repo.add_event(ev)
 
-    target = {"event_id": ev.event_id, "pid": 9999, "process_name": "evil.exe"}
-    action = ActionResult(
-        action=ResponseAction.TERMINATE_PROCESS,
-        status=ActionStatus.APPROVED,
-        target=target,
-        event_id=ev.event_id,
-        detail="approved by operator",
+        target = {"event_id": ev.event_id, "pid": 9999, "process_name": "evil.exe"}
+        action = ActionResult(
+            action=ResponseAction.TERMINATE_PROCESS,
+            status=ActionStatus.APPROVED,
+            target=target,
+            event_id=ev.event_id,
+            detail="approved by operator",
+        )
+        p.repo.add_action(action)
+        assert db.count("response_actions") == 1
+
+        dispatched = p.process_approved_actions()
+        assert dispatched == 1
+        assert pol.rechecked == 1
+        assert ex.executed == [ResponseAction.TERMINATE_PROCESS]
+        row = db.query_one(
+            "SELECT status, detail FROM response_actions WHERE action_id = ?", (action.action_id,)
+        )
+        assert row["status"] == "executed"
+    finally:
+        p.close()
+
+
+def test_pipeline_process_approved_actions_refused_by_policy_gate(db):
+    from centralium.agent.models import ActionResult, NormalizedEvent
+
+    ev = NormalizedEvent(
+        event_type=EventType.PROCESS_START,
+        pid=9999,
+        process_name="evil.exe",
+        executable_path="/tmp/evil.exe",
+        source="test",
+        host_id="localhost",
     )
-    p.repo.add_action(action)
-    assert db.count("response_actions") == 1
+    ex = RecordingExecutor()
+    pol = RecordingPolicy(action=ResponseAction.TERMINATE_PROCESS, refusal_reason="process is protected")
+    p = Pipeline(high_cfg(), db=db, policy=pol, executor=ex)
+    try:
+        p.repo.add_event(ev)
+        target = {"event_id": ev.event_id, "pid": 9999, "process_name": "evil.exe"}
+        action = ActionResult(
+            action=ResponseAction.TERMINATE_PROCESS,
+            status=ActionStatus.APPROVED,
+            target=target,
+            event_id=ev.event_id,
+            detail="approved by operator",
+        )
+        p.repo.add_action(action)
+        assert db.count("response_actions") == 1
 
-    dispatched = p.process_approved_actions()
-    assert dispatched == 1
-    assert ex.executed == [ResponseAction.TERMINATE_PROCESS]
-    row = db.query_one("SELECT status, detail FROM response_actions WHERE action_id = ?", (action.action_id,))
-    assert row["status"] == "executed"
+        dispatched = p.process_approved_actions()
+        assert dispatched == 1
+        assert pol.rechecked == 1
+        assert ex.executed == []
+        row = db.query_one(
+            "SELECT status, detail FROM response_actions WHERE action_id = ?", (action.action_id,)
+        )
+        assert row["status"] == "failed"
+        assert "refused by policy gate" in row["detail"]
+    finally:
+        p.close()
 
 
 def test_pipeline_writes_graph_snapshots_on_incident_and_manually(make_event, db):

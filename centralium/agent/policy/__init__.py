@@ -1,5 +1,6 @@
 """Deterministic policy engine (allowlists, protected processes, thresholds, approval, modes)."""
 
+from centralium.agent.policy.app_control import AppControlConfig, AppControlEngine
 from centralium.agent.policy.engine import PolicyTuning, RulesPolicyEngine
 from centralium.agent.policy.protection import ProtectionRules, own_lineage_pids
 from centralium.agent.policy.validation import (
@@ -15,6 +16,8 @@ from centralium.agent.policy.validation import (
 )
 
 __all__ = [
+    "AppControlConfig",
+    "AppControlEngine",
     "PolicyTuning",
     "ProtectionRules",
     "RulesPolicyEngine",

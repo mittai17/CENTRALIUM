@@ -1,0 +1,23 @@
+title: Run Key Persistence Modification
+id: f1a2b3c4-5555-4000-8000-000000000005
+status: production
+description: Detects registry creation or modification targeting Windows Run or RunOnce autorun keys.
+references:
+  - https://attack.mitre.org/techniques/T1547/001/
+author: Centralium EDR Engineering
+date: 2026-10-07
+level: high
+tags:
+  - attack.persistence
+  - attack.t1547.001
+logsource:
+  category: registry_event
+  product: windows
+detection:
+  selection:
+    TargetObject|contains:
+      - CurrentVersion\Run
+      - CurrentVersion\RunOnce
+  condition: selection
+falsepositives:
+  - Legitimate software installers configuring background startup services

@@ -1,0 +1,68 @@
+name: Centralium CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.13"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Upgrade pip and install build tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          python -m pip install -e ".[all]" pytest-randomly
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # Install base + dev dependencies, plus pywin32 for Windows service testing
+          python -m pip install -e ".[dev]" pywin32 pytest-randomly
+
+      - name: Ruff Lint & Format Check
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Mypy Type Checking
+        run: |
+          mypy
+
+      - name: Run Test Suite (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          pytest -ra -v
+
+      - name: Run Windows Test Suite (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # Honest status: Windows is verified in CI via unit tests, mock runners,
+          # Sysmon XML fixtures, netsh argv assertions, and pywin32 service wrapper imports.
+          # Live kernel ETW/filter-driver testing requires a bare-metal Windows installation.
+          pytest tests/unit/ -ra -v -m "not security"

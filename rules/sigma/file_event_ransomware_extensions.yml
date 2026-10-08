@@ -1,0 +1,26 @@
+title: Known Ransomware Extension Created
+id: f1a2b3c4-3333-4000-8000-000000000003
+status: production
+description: Detects creation or modification of files containing known ransomware encrypted extensions.
+references:
+  - https://attack.mitre.org/techniques/T1486/
+author: Centralium EDR Engineering
+date: 2026-10-07
+level: critical
+tags:
+  - attack.impact
+  - attack.t1486
+logsource:
+  category: file_event
+detection:
+  selection:
+    TargetFilename|endswith:
+      - .lockbit
+      - .blackcat
+      - .crypto
+      - .ryuk
+      - .locked
+      - .enc
+  condition: selection
+falsepositives:
+  - File encryption utilities using generic .enc or .crypto extensions

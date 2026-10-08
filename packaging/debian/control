@@ -1,0 +1,14 @@
+Source: centralium-agent
+Section: admin
+Priority: optional
+Maintainer: Centralium Security Team <security@centralium.dev>
+Build-Depends: debhelper-compat (= 13), dh-python, python3-all, python3-setuptools
+Standards-Version: 4.6.2
+Homepage: https://github.com/centralium/centralium
+
+Package: centralium-agent
+Architecture: any
+Depends: ${python3:Depends}, ${misc:Depends}, python3 (>= 3.11), systemd, libc6
+Description: Centralium Endpoint Detection and Response Agent
+ Real-time autonomous endpoint protection, behavioral analysis,
+ offline response playbooks, and secure forensic quarantine.

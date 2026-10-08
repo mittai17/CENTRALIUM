@@ -32,6 +32,10 @@ modifications | reason | Centralium wrapper/module.
 
 ## Third-party *dependencies* (not "reuse" of upstream EDR code)
 Python and JS packages are listed with licenses in THIRD_PARTY_NOTICES.md (regenerate with
-`scripts/gen_third_party_notices.py`). `cryptography` (Apache-2.0 OR BSD-3-Clause) is an optional runtime dependency used
-for Ed25519 update verification; it is installed in the dev venv but is not (yet) in `requirements.txt`/`pyproject.toml`
-(owned by the foundation owner - see LICENSE_IP_NOTES).
+`scripts/gen_third_party_notices.py`).
+Dependencies include `cryptography` (Apache-2.0 OR BSD-3-Clause) for Ed25519 update and manifest signing and AES-256-GCM quarantine encryption,
+`onnxruntime` (MIT) for accelerated ML anomaly and threat classification inference,
+`kuzu` (MIT) for embedded graph database storage,
+and `sqlite-vec` (MIT / Apache-2.0) for vector search.
+
+All Phase 2 modules (eBPF helper, fanotify/inotify file monitoring, Windows ETW/Sysmon parser, Sigma rule compiler, STIX 2.1 IOC parser, OCSF exporter, MITRE ATT&CK Navigator exporter, hybrid BM25 RAG, GBNF grammar generator, model drift monitor, fleet server, blast-radius estimator, reversibility engine, and OpenTelemetry tracer) are clean-room implementations developed without copying any upstream EDR code.

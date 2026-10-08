@@ -72,26 +72,30 @@ Profiles: `low-resource` (LLM off, scan depth 1), `balanced`, `analysis` (see `R
 
 | Package | Implements (interface) | Notes |
 |---|---|---|
-| `agent/collectors/linux`, `collectors/windows` | `Collector` | auditd/eBPF/psutil; ETW/EventLog/Sysmon; replay collector for demo |
-| `agent/normalization` | `Normalizer` | raw -> `NormalizedEvent`; validate paths/IPs/ports |
+| `agent/collectors/linux`, `collectors/windows` | `Collector` | auditd/eBPF/psutil; ETW/Sysmon; file_notify (fanotify/inotify); container awareness; auth telemetry |
+| `agent/normalization` | `Normalizer` | raw -> `NormalizedEvent`; validate paths/IPs/ports; OCSF schema mapping |
 | `agent/epp` | `EPPEngine` | hash/IOC/allowlist/blocklist/path rules; emits ALLOWLIST findings |
 | `agent/yara` | `YaraScanner` | rule registry (rule_id,name,family,severity,source,version,enabled,metadata) |
-| `agent/malware_analysis` | `StaticAnalyzer` | PE/ELF/entropy |
-| `agent/behavior`, `lolbins`, `persistence`, `ransomware` | `BehaviorEngine` | features + deterministic findings |
-| `agent/ml`, `ml/*` | `MLEngine` | IsolationForest + RandomForest, ONNX optional |
-| `agent/graph` | `GraphAdapter` | Kuzu behind adapter |
+| `agent/malware_analysis`, `agent/ml/static_classifier` | `StaticAnalyzer` | PE/ELF/entropy + static gradient-boosted classifier |
+| `agent/behavior`, `credential_access`, `dns_exfil`, `process_injection` | `BehaviorEngine` | features + specialized deterministic findings + sequence models |
+| `agent/ml`, `ml/*` | `MLEngine` | IsolationForest + RandomForest + OnnxMLEngine (5.6x speedup) + drift (PSI/KS) + registry |
+| `agent/graph` | `GraphAdapter` | Kuzu behind adapter + provenance anomaly model |
 | `agent/novelty` | `NoveltyFilter` | baselines, signed-binary trust |
-| `agent/rag`, `rag/*` | `RAGRetriever` | sqlite-vec / vector-store abstraction |
-| `agent/llm` | `LLMClient` | llama.cpp + Gemma 3 1B; strict `AIVerdict`; retry once |
-| `agent/risk` | `RiskEngine` | replaces `ReferenceRiskEngine` |
-| `agent/policy` | `PolicyEngine` | deterministic gate; AI is advisory |
-| `agent/response`, `quarantine` | `ResponseExecutor`, `QuarantineManager` | no shell=True, protected processes |
-| `agent/threat_intel` | `ThreatIntelStore` | local IOC cache; feeds updated periodically |
-| `agent/sync` | `SyncQueue` | uses `sync_queue` table |
-| `agent/self_protection` | `SelfProtection` | integrity, watchdog, tamper findings |
-| `agent/main.py` | CLI (Typer) | add sub-apps; `demo` command stub exists |
-| `dashboard/backend`, `dashboard/frontend` | FastAPI / React+TS | read via `Repository` |
-| `tests/*` | - | unit/integration/e2e/ml/performance/security |
+| `agent/rag`, `rag/*` | `RAGRetriever` | hybrid retrieval (BM25 + sqlite-vec), reranking |
+| `agent/llm` | `LLMClient` | llama.cpp + Gemma 3 1B; GBNF grammar constrained `AIVerdict`; KV/LRU cache |
+| `agent/risk` | `RiskEngine` | calibrated multi-factor risk + explainability & counterfactual traces |
+| `agent/policy`, `policy/app_control` | `PolicyEngine` | deterministic gate; execution allowlists & USB device control |
+| `agent/response`, `quarantine`, `simulate` | `ResponseExecutor`, `QuarantineManager` | blast radius, reversibility & dead-man switch, AES-256-GCM quarantine, SNAPSHOT_PROTECT, purple-team |
+| `agent/privacy` | `Redaction` | regex secret and PII redaction before LLM/logs/queue |
+| `agent/threat_intel` | `ThreatIntelStore` | local IOC cache; STIX 2.1 offline import; periodic feeds |
+| `agent/rules` | `SigmaCompiler` | Sigma YAML rule loader and compiler |
+| `agent/sync`, `agent/integrations` | `SyncQueue`, `OutboundManager` | durable SQLite WAL queue; Syslog CEF, Splunk HEC, Elastic Bulk, webhooks |
+| `centralium/fleet` | Fleet Server | enrollment, mTLS CA PKI, signed bundle distribution, cross-host correlation |
+| `agent/observability` | Tracer / Metrics | OpenTelemetry OTLP JSON export, Prometheus metrics, /healthz /readyz |
+| `agent/self_protection` | `SelfProtection` | integrity, watchdog, tamper findings, Ed25519 updates |
+| `agent/main.py` | CLI (Typer) | `run`, `demo`, `scan`, `dashboard`, `mode`, `ml`, `rag`, `quarantine`, `audit`, `benchmark`, `simulate`, `eval` |
+| `dashboard/backend`, `dashboard/frontend` | FastAPI / Next.js+TS | cases, RBAC, two-person approval, NL hunting, copilot |
+| `tests/*` | - | unit/integration/e2e/ml/performance/security (1078 tests) |
 
 ## Rules for implementers
 1. Return unavailable/empty rather than fabricating scores. `MLEngine.predict` returns `None` w/o a model.

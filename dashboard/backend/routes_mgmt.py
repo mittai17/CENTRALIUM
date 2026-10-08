@@ -15,6 +15,7 @@ from centralium.agent.models import DESTRUCTIVE_ACTIONS, ActionStatus, ResponseA
 from centralium.agent.storage.repositories import LIST_KINDS
 from dashboard.backend import mlreports
 from dashboard.backend.context import decode_row, jload, like_escape
+from dashboard.backend.rbac import validate_two_person_approval
 from dashboard.backend.routes_core import ai_backend, ctx_of
 from dashboard.backend.security import Principal, require
 
@@ -157,12 +158,12 @@ def decide(action_id: str, body: Decision, request: Request, p: Principal = admi
         raise HTTPException(404, "action not found")
     if row["status"] != ActionStatus.PENDING_APPROVAL.value:
         raise HTTPException(409, f"action is {row['status']}, not pending_approval")
-    if (
-        body.decision == "approve"
-        and ResponseAction(row["action"]) in DESTRUCTIVE_ACTIONS
-        and not ctx.config.destructive_allowed()
-    ):
-        raise HTTPException(409, "destructive actions are disabled in the current mode (demo/test/learning)")
+    if body.decision == "approve":
+        if ResponseAction(row["action"]) in DESTRUCTIVE_ACTIONS and not ctx.config.destructive_allowed():
+            raise HTTPException(
+                409, "destructive actions are disabled in the current mode (demo/test/learning)"
+            )
+        validate_two_person_approval(row, p, mode=ctx.config.mode.value)
     new = ActionStatus.APPROVED if body.decision == "approve" else ActionStatus.DENIED
     ctx.db.execute(
         "UPDATE response_actions SET status = ?, detail = ? WHERE action_id = ? AND status = 'pending_approval'",

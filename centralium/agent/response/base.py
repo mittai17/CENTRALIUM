@@ -160,6 +160,7 @@ class BaseResponseExecutor:
     audit: AuditFn | None = None
     simulate: bool = False  # demo/test mode: validate + plan, never act
     command_timeout: float = 15.0
+    reversibility: Any = None  # ReversibilityJournal instance to record undo actions
 
     platform_name = "base"
 
@@ -211,7 +212,24 @@ class BaseResponseExecutor:
             {"action": action.value, "status": status.value, "detail": detail[:500], "event_id": event.event_id,  # noqa: E501
              "simulate": simulate},
         )  # fmt: skip
+        if self.reversibility is not None and status in (ActionStatus.EXECUTED, ActionStatus.SIMULATED):
+            try:
+                self.reversibility.record(
+                    action,
+                    out_target,
+                    executor=self,
+                    result_detail=detail,
+                )
+            except Exception:
+                log.exception("failed to record reversibility undo action")
         return result
+
+    def estimate_blast_radius(
+        self, action: ResponseAction, target: dict[str, Any], *, threshold: float | None = None
+    ) -> Any:
+        from centralium.agent.response.blast_radius import BlastRadiusEstimator
+
+        return BlastRadiusEstimator().estimate(action, target, threshold=threshold)
 
     # ---- dispatch
     def _dispatch(

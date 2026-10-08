@@ -24,12 +24,15 @@ Guarantees
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
+import queue
 import threading
 import time
 from collections import deque
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -96,6 +99,7 @@ from centralium.agent.nulls import (
     NullYara,
     ReferenceRiskEngine,
 )
+from centralium.agent.risk.explainability import build_explainability_trace
 from centralium.agent.storage import Database, Repository
 from centralium.agent.storage.projection import project_event
 
@@ -329,6 +333,103 @@ class ApprovedActionDispatcher:
             self._thread = None
 
 
+@dataclass
+class BackgroundLLMJob:
+    request: LLMRequest
+    pre_risk: float
+    incident_id: str | None = None
+    callback: Callable[[AIAnalysis], None] | None = None
+
+
+class BackgroundLLMQueue:
+    """Async background analysis queue for LLM reasoning so pipeline response actions
+    are never blocked waiting on LLM inference."""
+
+    def __init__(
+        self,
+        llm: LLMClient,
+        *,
+        on_complete: Callable[[LLMRequest, AIAnalysis, float, str | None], None] | None = None,
+        max_size: int = 256,
+    ) -> None:
+        self.llm = llm
+        self.on_complete = on_complete
+        self._queue: queue.Queue[BackgroundLLMJob | None] = queue.Queue(maxsize=max_size)
+        self._running = True
+        self._lock = threading.Lock()
+        self.jobs_enqueued = 0
+        self.jobs_completed = 0
+        self.jobs_failed = 0
+        self._worker = threading.Thread(target=self._run, daemon=True, name="centralium-bg-llm")
+        self._worker.start()
+
+    def enqueue(
+        self,
+        request: LLMRequest,
+        pre_risk: float,
+        incident_id: str | None = None,
+        callback: Callable[[AIAnalysis], None] | None = None,
+    ) -> bool:
+        if not self._running:
+            return False
+        job = BackgroundLLMJob(
+            request=request,
+            pre_risk=pre_risk,
+            incident_id=incident_id,
+            callback=callback,
+        )
+        try:
+            self._queue.put_nowait(job)
+            with self._lock:
+                self.jobs_enqueued += 1
+            return True
+        except queue.Full:
+            log.warning("Background LLM queue full; dropping job for event %s", request.event.event_id)
+            return False
+
+    def _run(self) -> None:
+        while self._running:
+            try:
+                job = self._queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            if job is None:
+                self._queue.task_done()
+                break
+            try:
+                ai = self.llm.analyze(job.request)
+                with self._lock:
+                    self.jobs_completed += 1
+                if job.callback:
+                    try:
+                        job.callback(ai)
+                    except Exception:
+                        log.exception("Background LLM callback failed")
+                if self.on_complete:
+                    try:
+                        self.on_complete(job.request, ai, job.pre_risk, job.incident_id)
+                    except Exception:
+                        log.exception("Background LLM completion handler failed")
+            except Exception:
+                with self._lock:
+                    self.jobs_failed += 1
+                log.exception("Background LLM execution failed")
+            finally:
+                self._queue.task_done()
+
+    def drain(self, timeout: float = 5.0) -> None:
+        t0 = time.monotonic()
+        while not self._queue.empty() and time.monotonic() - t0 < timeout:
+            time.sleep(0.02)
+
+    def stop(self) -> None:
+        self._running = False
+        with contextlib.suppress(Exception):
+            self._queue.put_nowait(None)
+        if self._worker.is_alive():
+            self._worker.join(timeout=1.0)
+
+
 # --------------------------------------------------------------------------- pipeline
 class Pipeline:
     def __init__(
@@ -352,8 +453,10 @@ class Pipeline:
         threat_intel: ThreatIntelStore | None = None,
         mode_manager: ModeManager | None = None,
         on_incident: Callable[[Incident], None] | None = None,
+        async_llm: bool = False,
     ) -> None:
         self.config = config or CentraliumConfig()
+        self.async_llm = async_llm or getattr(self.config.llm, "async_analysis", False)
         self.db = db
         self.repo = Repository(db) if db is not None else None
         self.normalizer = normalizer or NullNormalizer()
@@ -386,6 +489,28 @@ class Pipeline:
         self._action_seen: dict[tuple[Any, ...], float] = {}
         self._lineage: dict[tuple[str, int], list[Finding]] = {}
         self._ai_cache: dict[tuple[str, int], tuple[float, float, AIAnalysis]] = {}
+        self.llm_queue = BackgroundLLMQueue(self.llm, on_complete=self._on_bg_llm_complete)
+
+    def _on_bg_llm_complete(
+        self, req: LLMRequest, ai: AIAnalysis, pre_risk: float, incident_id: str | None
+    ) -> None:
+        self._remember_ai(req.event, ai, pre_risk)
+        if self.repo is not None and ai.available:
+            try:
+                self.repo.add_ai_analysis(ai)
+            except Exception:
+                log.exception("failed to persist background AI analysis")
+        if incident_id is not None and self.db is not None and ai.available:
+            try:
+                self.db.execute(
+                    "UPDATE incidents SET ai_analysis_id = ? WHERE incident_id = ?",
+                    (ai.analysis_id, incident_id),
+                )
+            except Exception:
+                log.exception("failed to link background AI analysis to incident %s", incident_id)
+
+    def drain_llm_queue(self, timeout: float = 5.0) -> None:
+        self.llm_queue.drain(timeout=timeout)
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -666,6 +791,10 @@ class Pipeline:
             self.graph.flush()
         except Exception:
             log.exception("graph flush failed on close")
+        try:
+            self.llm_queue.stop()
+        except Exception:
+            log.exception("llm queue stop failed on close")
 
     # ------------------------------------------------------------------ core
     def _process(
@@ -822,22 +951,27 @@ class Pipeline:
                 rag_docs=docs,
                 pre_risk=pre_risk,
             )
-            out.stages_reached.append("llm")
-            self.stats.inc("llm")
-            ai = self._stage(
-                "llm",
-                lambda: self.llm.analyze(req),
-                AIAnalysis(event_id=ev.event_id, available=False, error="stage failed"),
-                out,
-            )
-            if ai.rag_sources == [] and docs:
-                ai = ai.model_copy(update={"rag_sources": [d.doc_id for d in docs]})
-            out.ai = ai
-            scores[ScoreFamily.AI_ASSESSMENT] = self._ai_score(ai)
-            _ai = ai
-            self._persist(out, lambda r: r.add_ai_analysis(_ai))
-            self._remember_ai(ev, ai, pre_risk)
-            risk = self._stage("risk", lambda: self.risk.assess(scores, eff), risk, out)
+            if self.async_llm:
+                out.stages_reached.append("llm_queued")
+                self.stats.inc("llm_queued")
+                self.llm_queue.enqueue(req, pre_risk=pre_risk)
+            else:
+                out.stages_reached.append("llm")
+                self.stats.inc("llm")
+                ai = self._stage(
+                    "llm",
+                    lambda: self.llm.analyze(req),
+                    AIAnalysis(event_id=ev.event_id, available=False, error="stage failed"),
+                    out,
+                )
+                if ai.rag_sources == [] and docs:
+                    ai = ai.model_copy(update={"rag_sources": [d.doc_id for d in docs]})
+                out.ai = ai
+                scores[ScoreFamily.AI_ASSESSMENT] = self._ai_score(ai)
+                _ai = ai
+                self._persist(out, lambda r: r.add_ai_analysis(_ai))
+                self._remember_ai(ev, ai, pre_risk)
+                risk = self._stage("risk", lambda: self.risk.assess(scores, eff), risk, out)
 
         out.scores = scores
         out.risk = risk
@@ -924,6 +1058,17 @@ class Pipeline:
             self._audit(
                 "pipeline", "stage_errors", {"event_id": ev.event_id, "errors": out.stage_errors}, out
             )
+        try:
+            out.explainability = build_explainability_trace(
+                event_id=ev.event_id,
+                risk=risk,
+                findings=findings,
+                ml_res=ml_res,
+                graph_sig=graph_sig,
+                decision=out.decision,
+            )
+        except Exception:
+            log.exception("explainability trace construction failed")
         self.stats.observe("end_to_end", (time.perf_counter() - t_start) * 1000.0)
         return out
 

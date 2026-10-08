@@ -59,6 +59,7 @@ class FakeBackend:
         self.delay = delay
         self.calls: list[list[dict[str, str]]] = []
         self.schemas: list[Any] = []
+        self.grammars: list[Any] = []
         self.closed = 0
         self.ok = True
         self._active = 0
@@ -68,12 +69,13 @@ class FakeBackend:
     def check(self) -> tuple[bool, str]:
         return self.ok, "fake ready" if self.ok else "fake down"
 
-    def generate(self, messages, *, max_tokens, temperature, timeout, schema=None):
+    def generate(self, messages, *, max_tokens, temperature, timeout, schema=None, grammar=None):
         with self._l:
             self._active += 1
             self.max_active = max(self.max_active, self._active)
             self.calls.append(messages)
             self.schemas.append(schema)
+            self.grammars.append(grammar)
         try:
             if self.delay:
                 time.sleep(self.delay)

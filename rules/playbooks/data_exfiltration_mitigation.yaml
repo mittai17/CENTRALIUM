@@ -1,0 +1,25 @@
+id: "pb-data-exfiltration-mitigation"
+name: "Data Exfiltration Channel Mitigation"
+description: "Blocks egress destination IP and suspends data-staging/uploading processes immediately."
+categories:
+  - "exfiltration"
+min_severity: "HIGH"
+author: "Centralium SecOps"
+version: "1.0"
+tags:
+  - "exfiltration"
+  - "t1048"
+steps:
+  - id: "step-1-block-egress"
+    action: "BLOCK_CONNECTION"
+    target_field: "destination_ip"
+    description: "Sever outbound upload channel to unauthorized IP"
+    require_approval: false
+    continue_on_failure: false
+
+  - id: "step-2-suspend-uploader"
+    action: "SUSPEND_PROCESS"
+    target_field: "pid"
+    description: "Freeze process performing bulk data upload"
+    require_approval: false
+    continue_on_failure: false

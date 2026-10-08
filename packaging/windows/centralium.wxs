@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Centralium EDR Agent" Language="1033" Version="0.1.0.0" Manufacturer="Centralium Dev" UpgradeCode="73a0e14a-f374-4b53-8f0a-115fdb98a092">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Centralium is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="ProductFeature" Title="CentraliumAgent" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+  </Product>
+
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="Centralium" />
+      </Directory>
+      <Directory Id="CommonAppDataFolder">
+        <Directory Id="CENTRALIUMDATAFOLDER" Name="Centralium" />
+      </Directory>
+    </Directory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="CentraliumExecutable" Guid="a6234b92-75d8-4f24-9b5b-5b5cb4e5a911" Win64="yes">
+        <File Id="CentraliumExe" Source="bin\centralium.exe" KeyPath="yes" />
+        <ServiceInstall Id="CentraliumServiceInstall"
+                        Name="CentraliumAgent"
+                        DisplayName="Centralium EDR Agent"
+                        Type="ownProcess"
+                        Start="auto"
+                        ErrorControl="normal"
+                        Description="Real-time autonomous endpoint detection and response agent." />
+        <ServiceControl Id="CentraliumServiceControl"
+                        Name="CentraliumAgent"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

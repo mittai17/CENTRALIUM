@@ -15,15 +15,22 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
 from centralium.agent.config import CentraliumConfig, load_config
 from centralium.agent.storage import Database, Repository
 from dashboard.backend import routes_core, routes_mgmt, routes_telemetry
+from dashboard.backend.cases import CaseStore, create_cases_router
 from dashboard.backend.context import Context
 from dashboard.backend.metrics import Metrics
+from dashboard.backend.rbac import (
+    MockOIDCProvider,
+    OIDCAdapter,
+    OIDCConfig,
+    create_auth_router,
+)
 from dashboard.backend.security import (
     Principal,
     RateLimiter,
@@ -103,9 +110,35 @@ def create_app(
     app.include_router(routes_telemetry.router)
     app.include_router(routes_mgmt.router)
 
+    case_store = CaseStore(db._conn)
+    app.state.case_store = case_store
+    app.include_router(create_cases_router(case_store))
+
+    oidc_cfg = OIDCConfig(enabled=False)
+    oidc_adapter = OIDCAdapter(oidc_cfg)
+    mock_oidc = MockOIDCProvider(oidc_cfg)
+    app.include_router(create_auth_router(oidc_adapter, mock_oidc))
+
     @app.get("/api/health")
+    @app.get("/healthz")
+    @app.get("/api/healthz")
     def health() -> dict[str, Any]:
-        return {"status": "ok"}
+        return {"status": "ok", "uptime_s": round(time.time() - ctx.started_at, 2)}
+
+    @app.get("/readyz")
+    @app.get("/api/readyz")
+    def readyz() -> Response:
+        try:
+            with ctx.db._lock:
+                row = ctx.db._conn.execute("SELECT 1").fetchone()
+                if row is None or row[0] != 1:
+                    return JSONResponse(
+                        status_code=503,
+                        content={"status": "not_ready", "error": "db check failed"},
+                    )
+        except Exception as exc:
+            return JSONResponse(status_code=503, content={"status": "not_ready", "error": str(exc)})
+        return JSONResponse(status_code=200, content={"status": "ready", "database": "connected"})
 
     @app.get("/api/whoami")
     def whoami(p: Principal = Depends(current_principal)) -> dict[str, Any]:

@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from centralium.agent.interfaces import SyncItem
+from centralium.agent.privacy.redaction import redact
 
 log = logging.getLogger("centralium.sync.queue")
 
@@ -217,7 +218,8 @@ class DurableSyncQueue:
         """Non-blocking durable enqueue. True if newly stored (or buffered); False if duplicate/dropped."""
         t0 = time.perf_counter_ns()
         try:
-            return self._enqueue(payload, dedup_key)
+            clean_payload = redact(payload)
+            return self._enqueue(clean_payload, dedup_key)
         finally:
             dt = time.perf_counter_ns() - t0
             self.metrics["enqueue_ns_total"] += dt
