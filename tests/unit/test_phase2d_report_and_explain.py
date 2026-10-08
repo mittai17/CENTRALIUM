@@ -181,7 +181,7 @@ def test_cli_eval_commands(tmp_path: Path):
 
     # 2. Test 'centralium eval llm'
     llm_out = tmp_path / "llm.json"
-    res_llm = runner.invoke(app, ["eval", "llm", "--out", str(llm_out)])
+    res_llm = runner.invoke(app, ["eval", "llm", "--out", str(llm_out)], env={"CENTRALIUM_TEST_MODE": "1"})
     assert res_llm.exit_code == 0
     assert llm_out.exists()
     llm_data = json.loads(llm_out.read_text(encoding="utf-8"))
