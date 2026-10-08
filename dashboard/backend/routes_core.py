@@ -242,7 +242,8 @@ def system_metrics(request: Request, _: Principal = viewer) -> dict[str, Any]:
         for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent", "memory_info", "status", "username"]):
             try:
                 info = p.info
-                mem_rss = info.get("memory_info").rss if info.get("memory_info") else 0
+                minfo = info.get("memory_info")
+                mem_rss = getattr(minfo, "rss", 0) if minfo is not None else 0
                 top_procs.append({
                     "pid": info.get("pid"),
                     "name": info.get("name") or "unknown",
