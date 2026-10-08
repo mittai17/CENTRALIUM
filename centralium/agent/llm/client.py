@@ -46,6 +46,7 @@ from centralium.agent.models import AIAnalysis, AIVerdict, Verdict
 log = logging.getLogger("centralium.llm")
 
 SERVER_URL_ENV = "CENTRALIUM_LLM_SERVER_URL"
+DEFAULT_SERVER_URL = "http://127.0.0.1:8080"
 FAIL_THRESHOLD = 3
 COOLDOWN_SEC = 30.0
 AVAIL_CACHE_SEC = 5.0
@@ -284,12 +285,26 @@ class LocalLLMClient:
 
 def build_llm_client(settings: LLMSettings, *, server_url: str | None = None) -> LocalLLMClient:
     """Choose the backend: ``CENTRALIUM_LLM_SERVER_URL`` (loopback llama-server) if set,
+    else settings.server_url (defaults to http://127.0.0.1:8080),
     else llama-cpp-python when importable and ``model_path`` exists. Otherwise a client
     that reports *unavailable* - it never silently substitutes a mock."""
-    url = server_url or os.environ.get(SERVER_URL_ENV)
+    url = (
+        server_url
+        if server_url is not None
+        else (os.environ.get(SERVER_URL_ENV) or getattr(settings, "server_url", None) or DEFAULT_SERVER_URL)
+    )
     if url:
         try:
-            return LocalLLMClient(settings, LlamaServerBackend(url))
+            server_backend = LlamaServerBackend(url)
+            if server_url is None and not os.environ.get(SERVER_URL_ENV):
+                ok, _ = server_backend.check()
+                if not ok and settings.model_path is not None and LlamaCppPythonBackend.importable():
+                    server_backend.close()
+                    url = None
+                else:
+                    return LocalLLMClient(settings, server_backend)
+            else:
+                return LocalLLMClient(settings, server_backend)
         except ValueError as exc:
             return LocalLLMClient(settings, None, unavailable_reason=str(exc))
     if settings.model_path is not None and LlamaCppPythonBackend.importable():
@@ -303,7 +318,7 @@ def build_llm_client(settings: LLMSettings, *, server_url: str | None = None) ->
             ),
         )
     why = (
-        "no model_path configured and no CENTRALIUM_LLM_SERVER_URL"
+        "no model_path configured and no server_url"
         if settings.model_path is None
         else "llama-cpp-python not installed (set CENTRALIUM_LLM_SERVER_URL to use llama-server)"
     )

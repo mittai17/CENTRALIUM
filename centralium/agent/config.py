@@ -35,6 +35,7 @@ ENV_PREFIX = "CENTRALIUM_"
 CONFIG_PATH_ENV = "CENTRALIUM_CONFIG"
 
 __all__ = [
+    "DEFAULT_LLM_SERVER_URL",
     "ENV_PREFIX",
     "CentraliumConfig",
     "LLMSettings",
@@ -189,6 +190,10 @@ RESOURCE_PROFILES: dict[ResourceProfileName, ResourceProfile] = {
 }
 
 
+DEFAULT_LLM_SERVER_URL: str = "http://127.0.0.1:8080"
+SERVER_URL_ENV = "CENTRALIUM_LLM_SERVER_URL"
+
+
 # --------------------------------------------------------------------------- LLM
 class LLMSettings(_Section):
     """ONE local model (Gemma 3 1B IT Q4_K_M via llama.cpp). No cloud endpoints exist here."""
@@ -196,6 +201,9 @@ class LLMSettings(_Section):
     enabled: bool = True
     model_name: str = "gemma-3-1b-it-Q4_K_M"
     model_path: Path | None = None  # *.gguf; None -> LLM unavailable (graceful)
+    server_url: str = Field(
+        default_factory=lambda: os.environ.get(SERVER_URL_ENV, DEFAULT_LLM_SERVER_URL)
+    )
     max_ctx: int = Field(default=2048, ge=256, le=32768)
     max_tokens: int = Field(default=384, ge=16, le=4096)
     timeout_sec: float = Field(default=60.0, gt=0, le=600)
@@ -323,7 +331,11 @@ class CentraliumConfig(_Section):
 
     @property
     def llm_effective_enabled(self) -> bool:
-        return self.llm.enabled and self.resource_profile.llm_enabled and self.llm.model_path is not None
+        return (
+            self.llm.enabled
+            and self.resource_profile.llm_enabled
+            and (self.llm.model_path is not None or bool(self.llm.server_url))
+        )
 
     def apply_resource_profile(self) -> CentraliumConfig:
         """Return a copy whose LLM ctx/tokens/threads/idle-unload follow the profile

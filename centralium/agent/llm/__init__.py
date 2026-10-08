@@ -12,7 +12,7 @@ from centralium.agent.llm.cache import (
     fingerprint_from_event,
     fingerprint_from_request,
 )
-from centralium.agent.llm.client import LocalLLMClient, build_llm_client
+from centralium.agent.llm.client import DEFAULT_SERVER_URL, LocalLLMClient, build_llm_client
 from centralium.agent.llm.grammar import (
     benchmark_grammar_simulation,
     get_ai_verdict_gbnf,
@@ -22,6 +22,7 @@ from centralium.agent.llm.mock import MOCK_MODEL_NAME, MockLLM
 from centralium.agent.llm.prompts import ROLE_TOKEN_BUDGETS, ROLES, build_prompt
 
 __all__ = [
+    "DEFAULT_SERVER_URL",
     "MOCK_MODEL_NAME",
     "ROLES",
     "ROLE_TOKEN_BUDGETS",

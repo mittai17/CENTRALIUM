@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -69,6 +69,11 @@ def create_app(
     if token_file is None and str(db_path) != ":memory:":
         token_file = Path(db_path).expanduser().parent / "dashboard_tokens.json"
     store, generated = build_token_store(tokens, hash_file=token_file)
+    active_tokens = (
+        dict(generated)
+        if generated
+        else (dict(tokens) if isinstance(tokens, (dict, Mapping)) else {})
+    )
     ctx = Context(
         db=db,
         repo=Repository(db),
@@ -79,13 +84,13 @@ def create_app(
         ml_dir=ml_dir or PROJECT_ROOT / "ml",
         rules_dir=rules_dir or PROJECT_ROOT / "rules",
         started_at=time.time(),
-        generated_tokens=generated,
+        generated_tokens=active_tokens,
     )
     app = FastAPI(
         title="Centralium Dashboard API", version="0.1.0", docs_url=None, redoc_url=None, openapi_url=None
     )
     app.state.ctx = ctx
-    app.state.generated_tokens = generated
+    app.state.generated_tokens = active_tokens
 
     app.add_middleware(
         CORSMiddleware,

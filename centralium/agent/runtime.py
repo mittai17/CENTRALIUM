@@ -190,7 +190,7 @@ class Runtime:
     _snap_stop: threading.Event = field(default_factory=threading.Event)
 
     # ------------------------------------------------------------------ lifecycle
-    def start_background(self, *, snapshot_interval_s: float = 15.0, workers: int = 2) -> None:
+    def start_background(self, *, snapshot_interval_s: float = 5.0, workers: int = 2) -> None:
         if self._started:
             return
         self._started = True
@@ -269,6 +269,14 @@ class Runtime:
         except Exception:
             log.exception("final graph snapshot failed")
 
+    def update_self_protection_baseline(
+        self, actor: str = "runtime", reason: str = "baseline updated"
+    ) -> dict[str, Any] | None:
+        """Update the self-protection baseline manifest to cover current legitimate files."""
+        if self.selfprot is not None:
+            return self.selfprot.update_baseline(actor=actor, reason=reason)
+        return None
+
     def __enter__(self) -> Runtime:
         return self
 
@@ -286,14 +294,20 @@ def select_llm(config: CentraliumConfig, llm_mode: str = "auto") -> tuple[LLMCli
         return NullLLM(), "disabled", "LLM disabled by configuration/profile"
     if llm_mode == "mock":
         return MockLLM(), "mock", MOCK_MODEL_NAME
-    client = build_llm_client(config.llm)
+
+    server_url = (
+        getattr(config.llm, "server_url", None)
+        or os.environ.get(LLM_SERVER_URL_ENV)
+        or "http://127.0.0.1:8080"
+    )
+    client = build_llm_client(config.llm, server_url=server_url)
     try:
         ok = client.available()
     except Exception:
         log.exception("LLM availability probe failed")
         ok = False
     if ok:
-        backend = "llama-server" if os.environ.get(LLM_SERVER_URL_ENV) else "llama-cpp-python"
+        backend = getattr(client, "backend_name", "llama-server")
         return client, backend, client.model_name
     if llm_mode == "auto" and sandbox:
         return MockLLM(), "mock", MOCK_MODEL_NAME + " [fallback: real model unavailable]"
@@ -457,8 +471,8 @@ def build_runtime(
             pipeline.process(ev, extra_findings=[finding])
 
         selfprot = SelfProtectionMonitor(sp_cfg, finding_sink=tamper_sink, audit=audit_fn)
-        if not sp_cfg.baseline_path.exists():
-            selfprot.create_baseline(actor="runtime", reason="first start: initial integrity baseline")
+        if not sp_cfg.baseline_path.exists() or os.environ.get("CENTRALIUM_UPDATE_BASELINE") == "1":
+            selfprot.create_baseline(actor="runtime", reason="initial or refreshed integrity baseline")
 
     approvals = pipeline.approvals or ApprovedActionDispatcher(db, cfg, modes, policy, executor)
     return Runtime(

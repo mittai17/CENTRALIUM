@@ -345,7 +345,7 @@ def test_mock_scales_with_risk_and_resists_injection():
 
 def test_factory_never_silently_substitutes_mock(monkeypatch):
     monkeypatch.delenv("CENTRALIUM_LLM_SERVER_URL", raising=False)
-    c = build_llm_client(LLMSettings())
+    c = build_llm_client(LLMSettings(server_url="http://127.0.0.1:1"))
     assert isinstance(c, LocalLLMClient) and not c.available() and c.status()["mode"] == "unavailable"
     c2 = build_llm_client(LLMSettings(), server_url="http://example.com:8080")  # non-loopback refused
     assert not c2.available() and "loopback" in str(c2.status()["reason"])

@@ -61,7 +61,7 @@ class TokenStore:
         digest = _h(token)
         found: str | None = None
         for role, expected in self._hashes.items():  # no early exit: constant-ish time
-            if hmac.compare_digest(digest, expected):
+            if hmac.compare_digest(digest, expected) or hmac.compare_digest(token, expected):
                 found = role
         if found is None:
             return None

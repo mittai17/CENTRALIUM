@@ -27,6 +27,7 @@ GET_ENDPOINTS = [
     "/api/audit",
     "/api/settings",
     "/api/hunt/schema",
+    "/api/system/metrics",
     "/metrics",
 ]
 
@@ -185,6 +186,21 @@ def test_graph_snapshot_table_used_when_present(tmp_path):
     con.commit()
     con.close()
     assert c.get("/api/graph", headers=hdr("viewer")).json()["source"] == "snapshot"
+    # live=true overrides snapshot to return live DB derived process tree
+    assert c.get("/api/graph?live=true", headers=hdr("viewer")).json()["source"] == "derived"
+
+
+def test_graph_empty_snapshot_falls_back_to_live_db(tmp_path):
+    c = make_client(tmp_path)
+    populate(tmp_path / "d.db")
+    con = sqlite3.connect(tmp_path / "d.db")
+    con.execute(
+        "INSERT INTO graph_snapshots (created_at, snapshot) VALUES ('2026-01-01T00:00:00+00:00', ?)",
+        (json.dumps({"nodes": [], "edges": []}),),
+    )
+    con.commit()
+    con.close()
+    assert c.get("/api/graph", headers=hdr("viewer")).json()["source"] == "derived"
 
 
 def test_ai_mock_detected(tmp_path):
@@ -390,3 +406,84 @@ def test_ml_runtime_stats_from_db(pop):
     assert r["runtime"]["results"] == 1 and r["runtime"]["anomaly_histogram"]["counts"][8] == 1
     assert r["runtime"]["top_features"][0]["feature"] == "cmd_len"
     assert r["evaluation"]["available"] is False  # runtime stats never become eval metrics
+
+
+def test_quick_auth_endpoint(pop):
+    c, _ = pop
+    r = c.get("/api/quick-auth")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is True
+    assert "default_token" in data
+    assert "tokens" in data
+    assert len(data["default_token"]) > 0
+    # verify default_token authenticates successfully
+    who = c.get("/api/whoami", headers={"Authorization": f"Bearer {data['default_token']}"})
+    assert who.status_code == 200
+    assert who.json()["role"] in ("admin", "analyst")
+
+
+def test_system_metrics_endpoint(pop):
+    c, _ = pop
+    # Unauthenticated rejected
+    unauth = c.get("/api/system/metrics")
+    assert unauth.status_code == 401
+
+    r = c.get("/api/system/metrics", headers=hdr("viewer"))
+    assert r.status_code == 200
+    data = r.json()
+
+    assert data.get("ok") is True
+    assert "timestamp" in data
+
+    # CPU metrics
+    assert "cpu" in data
+    assert "percent" in data["cpu"]
+    assert "cores" in data["cpu"]
+    assert "physical_cores" in data["cpu"]
+
+    # Memory metrics
+    assert "memory" in data
+    assert "total_mb" in data["memory"]
+    assert "used_mb" in data["memory"]
+    assert "percent" in data["memory"]
+    assert "available_mb" in data["memory"]
+    assert "used_gb" in data["memory"]
+    assert "total_gb" in data["memory"]
+
+    # Agent metrics
+    assert "agent" in data
+    assert "pid" in data["agent"]
+    assert "rss_mb" in data["agent"]
+    assert "cpu_percent" in data["agent"]
+
+    # Pipeline metrics
+    assert "pipeline" in data
+    assert "total_events" in data["pipeline"]
+    assert "events_last_60s" in data["pipeline"]
+    assert "events_per_sec" in data["pipeline"]
+    assert "process_count" in data["pipeline"]
+    assert "active_connections" in data["pipeline"]
+
+    # History buffer
+    assert "history" in data
+    assert isinstance(data["history"], list)
+    assert len(data["history"]) == 30
+    for pt in data["history"]:
+        assert "time" in pt
+        assert "cpu" in pt
+        assert "memory" in pt
+        assert "events_rate" in pt
+
+    # Consecutive requests update history and maintain buffer
+    r2 = c.get("/api/system/metrics", headers=hdr("viewer"))
+    assert r2.status_code == 200
+    data2 = r2.json()
+    assert len(data2["history"]) == 30
+
+    # Legacy UI compatibility fields
+    assert "process_activity" in data
+    assert "pipeline_throughput" in data
+    assert "health" in data
+    assert "top_processes" in data
+

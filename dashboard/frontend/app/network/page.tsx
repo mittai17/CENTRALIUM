@@ -5,7 +5,7 @@ import { fmtNum, fmtTime } from "@/lib/format";
 import type { Rec } from "@/lib/api";
 
 export default function Network() {
-  const s = useApi<Rec>("/api/network?limit=100", 20000);
+  const s = useApi<Rec>("/api/network?limit=100", 3000);
   return (
     <>
       <PageHeader title="Network Activity" subtitle="Connections and DNS observed by the agent" />

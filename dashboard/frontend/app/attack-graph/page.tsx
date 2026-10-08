@@ -8,7 +8,7 @@ import type { Rec } from "@/lib/api";
 export default function AttackGraph() {
   const [inc, setInc] = useState("");
   const incidents = useApi<Rec>("/api/incidents?limit=100");
-  const s = useApi<Rec>(inc ? `/api/graph?incident_id=${encodeURIComponent(inc)}` : "/api/graph");
+  const s = useApi<Rec>(inc ? `/api/graph?incident_id=${encodeURIComponent(inc)}` : "/api/graph", 2500);
   return (
     <>
       <PageHeader title="Attack Graph" subtitle="Process lineage and network relationships" />

@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useAuth } from "./AuthProvider";
 import { useApi } from "@/lib/useApi";
 import { Loading } from "./ui";
 
 export const NAV: { href: string; label: string }[] = [
   { href: "/", label: "Overview" },
+  { href: "/system-monitor/", label: "System Monitor" },
   { href: "/threats/", label: "Threats" },
   { href: "/incidents/", label: "Incidents" },
   { href: "/attack-graph/", label: "Attack Graph" },
@@ -29,29 +30,127 @@ export const NAV: { href: string; label: string }[] = [
 function Login() {
   const { login } = useAuth();
   const [token, setTok] = useState("");
+  const [tokens, setTokens] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/quick-auth")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data) return;
+        if (data.tokens) {
+          setTokens(data.tokens);
+        }
+        if (data.default_token) {
+          setTok(data.default_token);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function submit(e?: FormEvent, tokenToUse?: string) {
+    if (e) e.preventDefault();
+    const targetToken = (tokenToUse ?? token).trim();
+    if (!targetToken) return;
     setBusy(true);
-    setErr(await login(token));
+    setErr(await login(targetToken));
     setBusy(false);
   }
+
+  async function handleRoleSelect(role: string) {
+    const roleToken = tokens[role] || (role === "admin" ? token : "");
+    if (!roleToken) return;
+    setTok(roleToken);
+    await submit(undefined, roleToken);
+  }
+
   return (
     <main className="login">
-      <form onSubmit={submit} className="card login-card">
+      <form onSubmit={(e) => submit(e)} className="card login-card">
         <div className="brand brand-dark">CENTRALIUM</div>
         <h1>Sign in</h1>
-        <p className="muted">Enter a dashboard access token (viewer, analyst or admin). Tokens are printed once on first start.</p>
+        <p className="muted">
+          Access token is pre-filled for local access. Click &apos;Get Started&apos; to enter the SOC dashboard.
+        </p>
+
+        <div style={{ margin: "10px 0 6px" }}>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>
+            Quick select role:
+          </div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn"
+              style={{
+                fontSize: "12px",
+                padding: "4px 10px",
+                borderColor: "var(--red, #cf222e)",
+                color: "var(--red, #cf222e)",
+                fontWeight: 600,
+                background: "#fff",
+              }}
+              onClick={() => handleRoleSelect("admin")}
+              disabled={busy}
+              title="Sign in with Admin privileges"
+            >
+              ★ Get Started as Admin
+            </button>
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: "12px", padding: "4px 10px" }}
+              onClick={() => handleRoleSelect("analyst")}
+              disabled={busy}
+              title="Sign in with Analyst privileges"
+            >
+              Analyst
+            </button>
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: "12px", padding: "4px 10px" }}
+              onClick={() => handleRoleSelect("viewer")}
+              disabled={busy}
+              title="Sign in with Viewer privileges"
+            >
+              Viewer
+            </button>
+          </div>
+        </div>
+
         <label htmlFor="tok">Access token</label>
-        <input id="tok" type="password" autoComplete="off" value={token} onChange={(e) => setTok(e.target.value)} required />
+        <input
+          id="tok"
+          type="text"
+          autoComplete="off"
+          value={token}
+          onChange={(e) => setTok(e.target.value)}
+          placeholder="Pre-filling token..."
+          style={{ fontFamily: "monospace", fontSize: "12px", padding: "8px 10px" }}
+          required
+        />
+        {token && (
+          <div className="muted small" style={{ fontSize: "11px", marginTop: "2px" }}>
+            Active token loaded ({token.length} chars)
+          </div>
+        )}
         {err && (
           <p role="alert" className="error-text">
             {err}
           </p>
         )}
-        <button className="btn btn-primary" disabled={busy || !token}>
-          {busy ? "Checking..." : "Sign in"}
+        <button
+          type="submit"
+          className="btn btn-primary"
+          style={{ padding: "10px 16px", fontSize: "15px", fontWeight: 600, marginTop: "14px" }}
+          disabled={busy || !token}
+        >
+          {busy ? "Starting..." : "Get Started"}
         </button>
       </form>
     </main>

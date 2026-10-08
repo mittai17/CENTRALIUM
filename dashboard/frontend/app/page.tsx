@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useApi } from "@/lib/useApi";
 import { Async, Bars, Card, Empty, HBars, KV, PageHeader, Severity, Stat, Table } from "@/components/ui";
+import { LiveSystemMonitor } from "@/components/LiveSystemMonitor";
 import { fmtNum, fmtTime } from "@/lib/format";
 import type { Rec } from "@/lib/api";
 
@@ -28,6 +29,9 @@ export default function Overview() {
               <Stat label="Critical findings" value={d.findings_by_severity.CRITICAL} tone={d.findings_by_severity.CRITICAL > 0 ? "critical" : undefined} />
               <Stat label="Pending sync" value={d.counts.sync_pending} />
             </div>
+
+            <LiveSystemMonitor />
+
             <div className="grid g23">
               <Card title="Events per hour (last 24 buckets)">
                 <Bars ariaLabel="Events per hour" items={d.events_hourly.map((h: Rec) => ({ label: h.hour.slice(11, 13), value: h.events }))} />

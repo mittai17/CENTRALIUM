@@ -109,6 +109,10 @@ class SelfProtectionMonitor:
         """Operator-authorised re-baseline of config hashes (the only sanctioned way to change them)."""
         self.create_baseline(actor=actor, reason=f"config change accepted: {reason}")
 
+    def update_baseline(self, actor: str = "operator", reason: str = "baseline updated") -> dict[str, Any]:
+        """Operator-authorised re-baseline of package files and config hashes."""
+        return self.create_baseline(actor=actor, reason=reason)
+
     def register_component(self, name: str, health: HealthFn) -> None:
         with self._lock:
             self._components[name] = health

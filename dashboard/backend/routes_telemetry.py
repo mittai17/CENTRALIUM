@@ -39,6 +39,7 @@ def _snapshot(ctx: Any) -> dict[str, Any] | None:
             isinstance(data, dict)
             and isinstance(data.get("nodes"), list)
             and isinstance(data.get("edges"), list)
+            and len(data["nodes"]) > 0
         ):
             return {"nodes": data["nodes"][:2000], "edges": data["edges"][:5000]}
     return None
@@ -48,13 +49,16 @@ def _snapshot(ctx: Any) -> dict[str, Any] | None:
 def graph(
     request: Request,
     incident_id: str | None = Query(None, max_length=100),
+    live: bool = Query(False),
     limit: int = Query(150, ge=10, le=1000),
     _: Principal = viewer,
 ) -> dict[str, Any]:
     ctx = ctx_of(request)
-    if incident_id is None:
+    if incident_id:
+        incident_id = incident_id.strip() or None
+    if incident_id is None and not live:
         snap = _snapshot(ctx)
-        if snap:
+        if snap and snap.get("nodes"):
             return {"source": "snapshot", **snap}
     pids: list[tuple[str, int]] = []
     if incident_id:
@@ -83,6 +87,20 @@ def graph(
     else:
         procs = ctx.db.query("SELECT * FROM processes ORDER BY start_time DESC LIMIT ?", (limit,))
     by_key = {(p["host_id"], p["pid"]): p for p in procs}
+    missing_parents = {
+        (p["host_id"], p["ppid"])
+        for p in procs
+        if p["ppid"] is not None and (p["host_id"], p["ppid"]) not in by_key
+    }
+    if missing_parents:
+        for host, ppid in list(missing_parents)[:limit]:
+            parent_row = ctx.db.query_one(
+                "SELECT * FROM processes WHERE host_id = ? AND pid = ? ORDER BY start_time DESC LIMIT 1",
+                (host, ppid),
+            )
+            if parent_row:
+                by_key[(host, ppid)] = parent_row
+                procs.append(parent_row)
     for p in procs:
         nid = f"proc:{p['host_id']}:{p['pid']}"
         nodes[nid] = {
@@ -109,6 +127,40 @@ def graph(
             edges.append(
                 {"source": f"proc:{host}:{pid}", "target": nid, "type": "connected", "count": c["n"]}
             )
+    if not incident_id:
+        net_rows = ctx.db.query(
+            "SELECT host_id, pid, process_name, destination_ip, destination_port, COUNT(*) n "
+            "FROM network_connections WHERE destination_ip IS NOT NULL "
+            "GROUP BY host_id, pid, destination_ip, destination_port "
+            "ORDER BY timestamp DESC LIMIT 50"
+        )
+        for c in net_rows:
+            host = c["host_id"]
+            pid = c["pid"]
+            if pid is not None:
+                pnid = f"proc:{host}:{pid}"
+                if pnid not in nodes:
+                    nodes[pnid] = {
+                        "id": pnid,
+                        "type": "process",
+                        "label": c["process_name"] or f"pid {pid}",
+                        "pid": pid,
+                    }
+                nid = f"net:{c['destination_ip']}:{c['destination_port']}"
+                nodes.setdefault(
+                    nid, {"id": nid, "type": "network", "label": f"{c['destination_ip']}:{c['destination_port']}"}
+                )
+                edges.append(
+                    {"source": pnid, "target": nid, "type": "connected", "count": c["n"]}
+                )
+    seen_edges: set[tuple[str, str, str]] = set()
+    dedup_edges = []
+    for e in edges:
+        k = (str(e.get("source")), str(e.get("target")), str(e.get("type")))
+        if k not in seen_edges:
+            seen_edges.add(k)
+            dedup_edges.append(e)
+    edges = dedup_edges
     if not nodes:
         return {"source": "empty", "nodes": [], "edges": []}
     return {"source": "derived", "nodes": list(nodes.values()), "edges": edges}

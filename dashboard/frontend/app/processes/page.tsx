@@ -8,7 +8,7 @@ import type { Rec } from "@/lib/api";
 export default function Processes() {
   const [q, setQ] = useState("");
   const [qd, setQd] = useState("");
-  const s = useApi<Rec>(`/api/processes?limit=200${qd ? `&q=${encodeURIComponent(qd)}` : ""}`, 20000);
+  const s = useApi<Rec>(`/api/processes?limit=200${qd ? `&q=${encodeURIComponent(qd)}` : ""}`, 3000);
   return (
     <>
       <PageHeader title="Process Explorer" subtitle="Observed processes with parent relationships" />

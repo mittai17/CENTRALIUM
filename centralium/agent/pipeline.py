@@ -482,7 +482,8 @@ class Pipeline:
         )
         self._events_since_graph_snapshot = 0
         self._last_graph_snapshot_time = time.monotonic()
-        self._graph_snapshot_interval_events = 50
+        self._graph_snapshot_interval_events = 10
+        self._graph_snapshot_interval_sec = 5.0
         self.stats = PipelineStats()
         self._inc_lock = threading.Lock()
         self._incident_index: dict[tuple[Any, ...], tuple[Incident, float]] = {}
@@ -892,7 +893,8 @@ class Pipeline:
             self._events_since_graph_snapshot += 1
             now = time.monotonic()
             if self._events_since_graph_snapshot >= self._graph_snapshot_interval_events or (
-                self._events_since_graph_snapshot >= 10 and now - self._last_graph_snapshot_time >= 15.0
+                self._events_since_graph_snapshot > 0
+                and now - self._last_graph_snapshot_time >= self._graph_snapshot_interval_sec
             ):
                 self._stage("graph", self.snapshot_graph, 0, out)
 

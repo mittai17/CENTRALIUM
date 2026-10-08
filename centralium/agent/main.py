@@ -156,7 +156,14 @@ def _make_collectors(rt: Any, which: str) -> list[Any]:
     tokens = [t.strip().lower() for t in which.split(",") if t.strip()]
     if any(t in ("auto", "psutil") for t in tokens):
         out.append(
-            PsutilCollector(poll_interval=2.0, host_id=host, max_events_per_sec=rate, queue_size=qsize)
+            PsutilCollector(
+                emit_existing=True,
+                skip_loopback=False,
+                poll_interval=2.0,
+                host_id=host,
+                max_events_per_sec=rate,
+                queue_size=qsize,
+            )
         )
     if sys.platform.startswith("linux") and any(t in ("auto", "auditd") for t in tokens):
         ac = AuditdCollector(host_id=host, max_events_per_sec=rate, queue_size=qsize)
